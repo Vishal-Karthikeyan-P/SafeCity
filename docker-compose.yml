@@ -1,0 +1,111 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: safecity_db
+    restart: always
+
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-safecity}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-safecity_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-safecitydb}
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-safecity}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+
+    container_name: safecity_backend
+    restart: always
+
+    ports:
+      - "8000:8000"
+
+    volumes:
+      - ./apps/backend:/app
+      - uploads_data:/app/uploads
+
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-safecity}:${POSTGRES_PASSWORD:-safecity_pass}@db:5432/${POSTGRES_DB:-safecitydb}
+      SECRET_KEY: ${SECRET_KEY:-09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7}
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173,http://localhost:8080
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    command: |
+      sh -c '
+      alembic upgrade head
+
+      python - <<EOF
+      import asyncio
+      from app.core.database import SessionLocal
+      from app.core.security import get_password_hash
+      from app.models.user import User
+      from app.models.incident import Category
+
+      async def seed():
+          db = SessionLocal()
+
+          if not db.query(User).filter(User.email == "admin@safecity.com").first():
+              db.add(
+                  User(
+                      email="admin@safecity.com",
+                      full_name="System Admin",
+                      hashed_password=get_password_hash("admin123"),
+                      role="admin",
+                      is_active=True,
+                      is_verified=True,
+                  )
+              )
+
+          if not db.query(Category).first():
+              db.add_all([
+                  Category(name="Pothole", slug="pothole", icon="🕳️", color="#6b7280"),
+                  Category(name="Streetlight Out", slug="streetlight", icon="💡", color="#eab308"),
+                  Category(name="Vandalism", slug="vandalism", icon="🎨", color="#ef4444"),
+                  Category(name="Water Leak", slug="water_leak", icon="💧", color="#3b82f6"),
+                  Category(name="Suspicious Activity", slug="suspicious", icon="👁️", color="#8b5cf6"),
+              ])
+
+          db.commit()
+          db.close()
+
+      asyncio.run(seed())
+      EOF
+
+      exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      '
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+
+    container_name: safecity_web
+    restart: always
+
+    ports:
+      - "8080:80"
+
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  uploads_data:

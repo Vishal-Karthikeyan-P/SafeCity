@@ -1,0 +1,21 @@
+{
+  "name": "safecity",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SafeCity — Smart City Safety Platform",
+  "workspaces": [
+    "apps/web",
+    "apps/mobile",
+    "shared"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:mobile": "npm run start --workspace=apps/mobile",
+    "build:web": "npm run build --workspace=apps/web",
+    "type-check": "npm run type-check --workspace=apps/web",
+    "lint": "npm run lint --workspace=apps/web"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
