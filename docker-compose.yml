@@ -12,7 +12,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-safecitydb}
 
     ports:
-      - "5432:5432"
+      - "5433:5432"
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -40,7 +40,8 @@ services:
 
     environment:
       ENVIRONMENT: development
-      DATABASE_URL: postgresql://${POSTGRES_USER:-safecity}:${POSTGRES_PASSWORD:-safecity_pass}@db:5432/${POSTGRES_DB:-safecitydb}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-safecity}:${POSTGRES_PASSWORD:-safecity_pass}@db:5432/${POSTGRES_DB:-safecitydb}
+      DATABASE_URL_SYNC: postgresql://${POSTGRES_USER:-safecity}:${POSTGRES_PASSWORD:-safecity_pass}@db:5432/${POSTGRES_DB:-safecitydb}
       SECRET_KEY: ${SECRET_KEY:-09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7}
       ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173,http://localhost:8080
 
@@ -48,49 +49,7 @@ services:
       db:
         condition: service_healthy
 
-    command: |
-      sh -c '
-      alembic upgrade head
-
-      python - <<EOF
-      import asyncio
-      from app.core.database import SessionLocal
-      from app.core.security import get_password_hash
-      from app.models.user import User
-      from app.models.incident import Category
-
-      async def seed():
-          db = SessionLocal()
-
-          if not db.query(User).filter(User.email == "admin@safecity.com").first():
-              db.add(
-                  User(
-                      email="admin@safecity.com",
-                      full_name="System Admin",
-                      hashed_password=get_password_hash("admin123"),
-                      role="admin",
-                      is_active=True,
-                      is_verified=True,
-                  )
-              )
-
-          if not db.query(Category).first():
-              db.add_all([
-                  Category(name="Pothole", slug="pothole", icon="🕳️", color="#6b7280"),
-                  Category(name="Streetlight Out", slug="streetlight", icon="💡", color="#eab308"),
-                  Category(name="Vandalism", slug="vandalism", icon="🎨", color="#ef4444"),
-                  Category(name="Water Leak", slug="water_leak", icon="💧", color="#3b82f6"),
-                  Category(name="Suspicious Activity", slug="suspicious", icon="👁️", color="#8b5cf6"),
-              ])
-
-          db.commit()
-          db.close()
-
-      asyncio.run(seed())
-      EOF
-
-      exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-      '
+    command: sh -c "python -m app.db.init_db && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
   web:
     build:

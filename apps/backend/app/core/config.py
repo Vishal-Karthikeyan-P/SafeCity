@@ -16,7 +16,20 @@ class Settings(BaseSettings):
 
     # ── Database ──────────────────────────────────────────────
     DATABASE_URL: str = "postgresql+asyncpg://safecity:safecity_pass@localhost:5432/safecitydb"
-    DATABASE_URL_SYNC: str = "postgresql://safecity:safecity_pass@localhost:5432/safecitydb"
+    DATABASE_URL_SYNC: Optional[str] = None
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def validate_database_url(cls, v: str) -> str:
+        if isinstance(v, str) and v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
+
+    @property
+    def sync_database_url(self) -> str:
+        if self.DATABASE_URL_SYNC:
+            return self.DATABASE_URL_SYNC.replace("postgresql+asyncpg://", "postgresql://")
+        return self.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
 
     # ── Security ──────────────────────────────────────────────
     SECRET_KEY: str = "change-me-to-a-very-long-random-secret-key"

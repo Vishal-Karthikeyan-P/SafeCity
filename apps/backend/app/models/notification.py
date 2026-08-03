@@ -41,10 +41,21 @@ class Notification(Base):
     title: Mapped[str] = mapped_column(sa.String(255), nullable=False)
     message: Mapped[str] = mapped_column(sa.Text, nullable=False)
     is_read: Mapped[bool] = mapped_column(sa.Boolean, default=False, nullable=False, index=True)
-    incident_id: Mapped[Optional[str]] = mapped_column(sa.String(36), nullable=True)
+    incident_id: Mapped[Optional[str]] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("incidents.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
-        sa.DateTime(timezone=True), default=utcnow, nullable=False
+        sa.DateTime(timezone=True), default=utcnow, nullable=False, index=True
     )
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="notifications")  # type: ignore[name-defined]
+    incident: Mapped[Optional["Incident"]] = relationship("Incident")  # type: ignore[name-defined]
+
+    __table_args__ = (
+        sa.Index("ix_notifications_user_created", "user_id", "created_at"),
+    )
+

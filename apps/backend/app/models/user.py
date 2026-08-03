@@ -31,12 +31,12 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(sa.String(255), nullable=False)
     hashed_password: Mapped[str] = mapped_column(sa.String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(
-        sa.Enum(UserRole), nullable=False, default=UserRole.CITIZEN
+        sa.Enum(UserRole), nullable=False, default=UserRole.CITIZEN, index=True
     )
     is_active: Mapped[bool] = mapped_column(sa.Boolean, default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(sa.Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        sa.DateTime(timezone=True), default=utcnow, nullable=False
+        sa.DateTime(timezone=True), default=utcnow, nullable=False, index=True
     )
     updated_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False

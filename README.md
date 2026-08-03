@@ -37,37 +37,76 @@ The fastest way to run the entire stack is using Docker Compose.
    - **Backend API**: [http://localhost:8000/api/v1](http://localhost:8000/api/v1)
    - **API Docs (Swagger)**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-*Note: The backend container automatically runs database migrations and seeds the database with initial categories and an admin user (`admin@safecity.com` / `admin123`).*
+*Note: The backend container automatically runs database migrations (`alembic upgrade head`) and seeds the database with initial categories, 25 citizen users, 85 realistic incident reports across categories and statuses, notifications, and an admin user (`admin@safecity.com` / `AdminPass123!`).*
 
-## Local Development (Without Docker)
+## Database Initialization & Demo Seeding
 
-### Prerequisites
-- Node.js 18+
-- Python 3.10+
-- PostgreSQL + PostGIS extension
+SafeCity comes with a fully automated, production-ready PostgreSQL + PostGIS database initialization system.
 
-### 1. Database Setup
-Ensure PostgreSQL is running and create the database with PostGIS:
+### Option 1: Automated Initialization via Docker (Recommended)
+Simply start the stack with Docker Compose:
+```bash
+docker-compose up --build
+```
+On container startup, `python -m app.db.init_db` automatically:
+1. Enables PostGIS extension (`postgis`).
+2. Applies all Alembic schema migrations (`001_initial_schema`).
+3. Seeds default incident categories (8).
+4. Creates the Administrator account (`admin@safecity.com` / `AdminPass123!`).
+5. Populates 25 demo Citizen accounts with user profiles.
+6. Inserts 85 realistic incident reports with PostGIS geography coordinates, severities, statuses, timestamps, and evidence images.
+7. Generates 45+ user and system notifications.
+
+### Option 2: Manual Local Setup (Without Docker)
+
+#### 1. Start PostgreSQL with PostGIS
+Ensure PostgreSQL with PostGIS extension is installed and running on port `5432`:
 ```sql
 CREATE DATABASE safecitydb;
 \c safecitydb
-CREATE EXTENSION postgis;
+CREATE EXTENSION IF NOT EXISTS postgis;
 ```
 
-### 2. Backend Setup
+#### 2. Configure Environment Variables
+Copy `.env.example` to `.env` inside `apps/backend/`:
 ```bash
 cd apps/backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-alembic upgrade head
-python -m uvicorn app.main:app --reload
+cp .env.example .env
+```
+Ensure connection parameters match your PostgreSQL setup:
+```ini
+DATABASE_URL=postgresql+asyncpg://safecity:safecity_pass@localhost:5432/safecitydb
+DATABASE_URL_SYNC=postgresql://safecity:safecity_pass@localhost:5432/safecitydb
 ```
 
-### 3. Frontend Setup
-From the monorepo root:
+#### 3. Run Database Initialization & Seeding Script
+Execute the single initialization command:
 ```bash
-npm install
-npm run dev:web
+python -m app.db.init_db
 ```
-Access the frontend at `http://localhost:5173`.
+
+Or run steps individually:
+- **Run Alembic Migrations**:
+  ```bash
+  alembic upgrade head
+  ```
+- **Seed Demo Data**:
+  ```bash
+  python -m app.db.seed_db
+  ```
+
+#### 4. Run Backend & Frontend
+- **Backend**:
+  ```bash
+  uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+  ```
+- **Frontend**:
+  ```bash
+  # From workspace root
+  npm run dev:web
+  ```
+
+### Default Credentials
+- **Admin Account**: `admin@safecity.com` / `AdminPass123!`
+- **Demo Citizen User**: `aarav.sharma1@safecity.demo` / `UserPass123!`
+

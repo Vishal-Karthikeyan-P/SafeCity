@@ -62,7 +62,6 @@ async def create_tables():
     async with engine.begin() as conn:
         # Enable PostGIS extension
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis_topology"))
         # Import all models to register them with Base metadata
         from app.models import user, incident, notification  # noqa: F401
         await conn.run_sync(Base.metadata.create_all)

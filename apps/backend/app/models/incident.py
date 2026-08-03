@@ -121,6 +121,11 @@ class Incident(Base):
         "IncidentImage", back_populates="incident", cascade="all, delete-orphan"
     )
 
+    __table_args__ = (
+        sa.Index("ix_incidents_status_created", "status", "created_at"),
+        sa.Index("ix_incidents_cat_status", "category_id", "status"),
+    )
+
     def __repr__(self) -> str:
         return f"<Incident id={self.id} title={self.title!r}>"
 

@@ -9,6 +9,23 @@ from passlib.context import CryptContext
 
 from app.core.config import settings
 
+# Passlib + bcrypt 4.x compatibility patch
+try:
+    import bcrypt
+    if not hasattr(bcrypt, "__about__"):
+        class _BcryptAbout:
+            __version__ = getattr(bcrypt, "__version__", "4.0.1")
+        bcrypt.__about__ = _BcryptAbout()
+    
+    _orig_hashpw = bcrypt.hashpw
+    def _safe_hashpw(password, salt):
+        if isinstance(password, bytes) and len(password) > 72:
+            password = password[:72]
+        return _orig_hashpw(password, salt)
+    bcrypt.hashpw = _safe_hashpw
+except ImportError:
+    pass
+
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -17,12 +34,17 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def hash_password(password: str) -> str:
     """Hash a plain-text password."""
-    return pwd_context.hash(password)
+    pwd_bytes = password.encode("utf-8")[:72]
+    return pwd_context.hash(pwd_bytes.decode("utf-8", errors="ignore"))
+
+
+get_password_hash = hash_password
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain-text password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    pwd_bytes = plain_password.encode("utf-8")[:72]
+    return pwd_context.verify(pwd_bytes.decode("utf-8", errors="ignore"), hashed_password)
 
 
 # ── JWT Tokens ────────────────────────────────────────────────
