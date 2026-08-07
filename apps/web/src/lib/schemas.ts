@@ -30,8 +30,6 @@ export const updateProfileSchema = z.object({
   full_name: z.string().min(2).optional(),
   phone: z.string().optional(),
   bio: z.string().max(500).optional(),
-  emergency_contact_name: z.string().optional(),
-  emergency_contact_phone: z.string().optional(),
   city: z.string().optional(),
   country: z.string().optional(),
 })

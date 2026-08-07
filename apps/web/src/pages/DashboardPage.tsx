@@ -163,8 +163,8 @@ export function DashboardPage() {
           {[
             { href: '/map', icon: MapPin, label: 'View Map', color: 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' },
             { href: '/incidents/new', icon: Plus, label: 'Report Incident', color: 'text-green-500 bg-green-50 dark:bg-green-900/20' },
-            { href: '/incidents', icon: Eye, label: 'Browse Incidents', color: 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' },
-            { href: '/profile', icon: AlertTriangle, label: 'My Profile', color: 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' },
+            { href: '/alerts', icon: AlertTriangle, label: 'View Alerts', color: 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' },
+            { href: '/learning', icon: Eye, label: 'Learning Hub', color: 'text-purple-500 bg-purple-50 dark:bg-purple-900/20' },
           ].map(({ href, icon: Icon, label, color }) => (
             <Link key={href} to={href}>
               <Card className="hover:shadow-lg transition-all cursor-pointer group">

@@ -59,6 +59,20 @@ export function useNearbyIncidents(
   })
 }
 
+// ── Heatmap ───────────────────────────────────────────────────
+export function useHeatmap(filters: { category_id?: string; severity?: string } = {}) {
+  return useQuery({
+    queryKey: ['heatmap', filters],
+    queryFn: async () => {
+      const params = Object.fromEntries(
+        Object.entries(filters).filter(([, v]) => v != null && v !== '')
+      )
+      const res = await api.get('/incidents/heatmap', { params })
+      return res.data as { lat: number; lng: number; weight: number }[]
+    },
+  })
+}
+
 // ── Categories ────────────────────────────────────────────────
 export function useCategories() {
   return useQuery({

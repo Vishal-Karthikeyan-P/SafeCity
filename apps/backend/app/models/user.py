@@ -52,6 +52,12 @@ class User(Base):
     notifications: Mapped[List["Notification"]] = relationship(  # type: ignore[name-defined]
         "Notification", back_populates="user", cascade="all, delete-orphan"
     )
+    emergency_contacts: Mapped[List["EmergencyContact"]] = relationship(  # type: ignore[name-defined]
+        "EmergencyContact", back_populates="user", cascade="all, delete-orphan"
+    )
+    sos_requests: Mapped[List["SOSRequest"]] = relationship(  # type: ignore[name-defined]
+        "SOSRequest", back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email}>"

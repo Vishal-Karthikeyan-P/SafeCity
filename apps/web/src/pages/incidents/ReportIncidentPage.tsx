@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from 'react-router-dom'
-import { MapPin, Image as ImageIcon, X, AlertTriangle, ArrowRight } from 'lucide-react'
+import { MapPin, Image as ImageIcon, X, AlertTriangle, ArrowRight, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -11,6 +11,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { IncidentMap } from '@/components/map/IncidentMap'
 import { useCreateIncident, useUploadImages, useCategories } from '@/api/incidents'
 import { reportIncidentSchema, type ReportIncidentValues } from '@/lib/schemas'
+import { toast } from 'sonner'
 
 export function ReportIncidentPage() {
   const navigate = useNavigate()
@@ -19,7 +20,9 @@ export function ReportIncidentPage() {
   const { mutateAsync: uploadImages, isPending: isUploading } = useUploadImages()
 
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [mapCenter, setMapCenter] = useState<[number, number]>([20.5937, 78.9629]) // India default
   const [images, setImages] = useState<File[]>([])
+  const [isLocating, setIsLocating] = useState(false)
 
   const {
     register,
@@ -39,7 +42,7 @@ export function ReportIncidentPage() {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files)
       if (images.length + newFiles.length > 5) {
-        alert('Maximum 5 images allowed')
+        toast.error('Maximum 5 images allowed')
         return
       }
       setImages([...images, ...newFiles])
@@ -52,14 +55,23 @@ export function ReportIncidentPage() {
 
   const handleLocationSelect = (lat: number, lng: number) => {
     setSelectedLocation({ lat, lng })
+    setMapCenter([lat, lng])
     setValue('location_lat', lat, { shouldValidate: true })
     setValue('location_lng', lng, { shouldValidate: true })
   }
 
   const locateMe = () => {
+    setIsLocating(true)
     navigator.geolocation.getCurrentPosition(
-      (pos) => handleLocationSelect(pos.coords.latitude, pos.coords.longitude),
-      () => alert('Could not get your location. Please select on the map.')
+      (pos) => {
+        handleLocationSelect(pos.coords.latitude, pos.coords.longitude)
+        setIsLocating(false)
+        toast.success('Location set to your current position')
+      },
+      () => {
+        setIsLocating(false)
+        toast.error('Could not get your location. Please select on the map.')
+      }
     )
   }
 
@@ -150,8 +162,10 @@ export function ReportIncidentPage() {
           <CardContent className="p-6 space-y-6">
             <div className="flex items-center justify-between border-b pb-2">
               <h2 className="text-lg font-semibold">2. Location</h2>
-              <Button type="button" variant="outline" size="sm" onClick={locateMe}>
-                <MapPin className="w-4 h-4 mr-1" /> Use My Location
+              <Button type="button" variant="outline" size="sm" onClick={locateMe} disabled={isLocating}>
+                {isLocating
+                  ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Locating...</>
+                  : <><MapPin className="w-4 h-4 mr-1" /> Use My Location</>}
               </Button>
             </div>
             
@@ -160,8 +174,8 @@ export function ReportIncidentPage() {
             <div className={`rounded-xl overflow-hidden border ${errors.location_lat ? 'border-destructive' : ''}`}>
               <IncidentMap
                 incidents={[]}
-                center={[40.7128, -74.006]}
-                zoom={12}
+                center={mapCenter}
+                zoom={selectedLocation ? 14 : 5}
                 height="300px"
                 onLocationSelect={handleLocationSelect}
                 selectedLocation={selectedLocation}

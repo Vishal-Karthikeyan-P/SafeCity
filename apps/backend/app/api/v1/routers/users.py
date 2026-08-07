@@ -16,6 +16,8 @@ from app.core.security import hash_password, verify_password
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import UserSchema, UpdateProfileRequest, ChangePasswordRequest
+from app.schemas.emergency import EmergencyContactCreate, EmergencyContactUpdate, EmergencyContactSchema
+from app.services.emergency_service import EmergencyService
 
 router = APIRouter()
 
@@ -73,3 +75,53 @@ async def change_password(
     new_hash = hash_password(data.new_password)
     await repo.update(current_user, hashed_password=new_hash)
     return {"message": "Password changed successfully"}
+
+@router.delete("/me", status_code=204)
+async def delete_my_profile(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    repo = UserRepository(db)
+    # Perform soft or hard delete depending on policy. We will soft-delete here for safety.
+    await repo.update(current_user, is_active=False)
+    return None
+
+# ── Emergency Contacts ───────────────────────────────────────
+
+@router.get("/me/contacts", response_model=list[EmergencyContactSchema])
+async def list_emergency_contacts(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = EmergencyService(db)
+    return await service.list_contacts(current_user.id)
+
+@router.post("/me/contacts", response_model=EmergencyContactSchema, status_code=201)
+async def add_emergency_contact(
+    data: EmergencyContactCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = EmergencyService(db)
+    return await service.add_contact(current_user.id, data)
+
+@router.patch("/me/contacts/{contact_id}", response_model=EmergencyContactSchema)
+async def update_emergency_contact(
+    contact_id: str,
+    data: EmergencyContactUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = EmergencyService(db)
+    return await service.update_contact(contact_id, current_user.id, data)
+
+@router.delete("/me/contacts/{contact_id}", status_code=204)
+async def delete_emergency_contact(
+    contact_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = EmergencyService(db)
+    await service.delete_contact(contact_id, current_user.id)
+    return None
+

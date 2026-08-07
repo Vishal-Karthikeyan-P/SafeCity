@@ -1,112 +1,167 @@
-# SafeCity
+# SafeCity 🛡️
 
-SafeCity is a complete, production-ready smart city safety platform designed to help citizens report and track incidents, and for city administrators to manage them effectively.
+SafeCity is a **complete, production-ready smart city safety platform** that empowers citizens to report incidents, stay informed, and stay safe — while giving administrators powerful tools to moderate and analyze city-wide safety data.
 
-## Features
+---
 
-- **Authentication**: JWT-based login and registration with Role-Based Access Control (RBAC).
-- **Interactive Map**: View all approved incidents in your area, utilizing clustering and Geo-filtering.
-- **Incident Reporting**: Form with Map-based location selection, multi-image upload, severity grading, and anonymous reporting option.
-- **Admin Dashboard**: Comprehensive moderation tools, incident status management, charts (Recharts), and user administration.
-- **Responsive Web UI**: Built with React, TailwindCSS, and shadcn/ui inspired components for a modern, premium look.
-- **Robust Backend**: FastAPI backend using SQLAlchemy, PostgreSQL + PostGIS, and Alembic migrations.
-- **Dockerized**: Easy setup using Docker Compose to spin up the database, backend, and a production-grade Nginx frontend.
+## ✨ Features
 
-## Architecture
+| Category | Feature |
+|---|---|
+| 🔐 **Authentication** | JWT-based login/registration, Role-Based Access Control (RBAC), password hashing (bcrypt) |
+| 🗺️ **Live Safety Map** | Interactive Leaflet map with clustering, heatmap overlay, safe route planning (OSRM) |
+| 📋 **Incident Reporting** | Map-based location selection, multi-image upload, severity grading, anonymous reporting |
+| 🔍 **Global Search** | Cross-entity search across incidents and learning articles |
+| 📚 **Learning Hub** | Categorized safety guides with Do's/Don'ts, emergency steps, helplines, legal info |
+| 🚨 **Community Alerts** | Real-time active safety alerts (high risk areas, emergency notices, system announcements) |
+| 🆘 **SOS & Emergency** | SOS trigger with GPS coordinates, emergency contact management (up to 5 contacts) |
+| 📊 **Admin Dashboard** | Full analytics (Recharts), moderation tools, user management, content management (Articles & Alerts) |
+| 🔔 **Notifications** | In-app notifications for incident status updates, real-time badge counts |
 
-This is a monorepo setup containing:
-- `apps/backend/`: FastAPI application, Postgres database connection, migrations.
-- `apps/web/`: React + Vite single-page application.
-- `apps/mobile/`: Placeholder Expo React Native app.
-- `shared/`: TypeScript interfaces/types shared across the monorepo.
+---
 
-## Quick Start (Docker)
+## 🏗️ Architecture
+
+This is a **monorepo** setup:
+
+```
+Safe City/
+├── apps/
+│   ├── backend/          # FastAPI + SQLAlchemy + PostGIS (Python)
+│   └── web/              # React + Vite + TypeScript (Frontend)
+├── shared/               # Shared TypeScript types
+└── docker-compose.yml
+```
+
+### Backend Stack
+- **FastAPI** — async REST API with OpenAPI docs
+- **SQLAlchemy 2.0** — async ORM with typed models
+- **PostgreSQL + PostGIS** — spatial database for geo queries
+- **Alembic** — database migrations
+- **JWT** — access + refresh token auth
+- **OSRM** — open-source routing for safe route planning
+
+### Frontend Stack
+- **React 18 + TypeScript** — component-based UI
+- **Vite** — lightning-fast bundler
+- **React Query (TanStack)** — server state management
+- **Leaflet** — interactive maps with heatmaps and route polylines
+- **Recharts** — analytics charts
+- **Zustand** — client state management
+- **Zod + React Hook Form** — form validation
+
+---
+
+## 🚀 Quick Start (Docker)
 
 The fastest way to run the entire stack is using Docker Compose.
 
-1. Create a `.env` file from the example:
-   ```bash
-   cp .env.example .env
-   ```
-2. Build and start the containers:
-   ```bash
-   docker-compose up --build -d
-   ```
-3. Access the applications:
-   - **Frontend (Web)**: [http://localhost:8080](http://localhost:8080)
-   - **Backend API**: [http://localhost:8000/api/v1](http://localhost:8000/api/v1)
-   - **API Docs (Swagger)**: [http://localhost:8000/docs](http://localhost:8000/docs)
-
-*Note: The backend container automatically runs database migrations (`alembic upgrade head`) and seeds the database with initial categories, 25 citizen users, 85 realistic incident reports across categories and statuses, notifications, and an admin user (`admin@safecity.com` / `AdminPass123!`).*
-
-## Database Initialization & Demo Seeding
-
-SafeCity comes with a fully automated, production-ready PostgreSQL + PostGIS database initialization system.
-
-### Option 1: Automated Initialization via Docker (Recommended)
-Simply start the stack with Docker Compose:
 ```bash
-docker-compose up --build
+# 1. Create environment file
+cp .env.example .env
+
+# 2. Build and start containers
+docker-compose up --build -d
+
+# 3. (Optional) Seed content data
+docker exec safecity-backend python seed_data.py
 ```
-On container startup, `python -m app.db.init_db` automatically:
-1. Enables PostGIS extension (`postgis`).
-2. Applies all Alembic schema migrations (`001_initial_schema`).
-3. Seeds default incident categories (8).
-4. Creates the Administrator account (`admin@safecity.com` / `AdminPass123!`).
-5. Populates 25 demo Citizen accounts with user profiles.
-6. Inserts 85 realistic incident reports with PostGIS geography coordinates, severities, statuses, timestamps, and evidence images.
-7. Generates 45+ user and system notifications.
 
-### Option 2: Manual Local Setup (Without Docker)
+Access the applications:
+- **Frontend**: [http://localhost:8080](http://localhost:8080)
+- **Backend API**: [http://localhost:8000/api/v1](http://localhost:8000/api/v1)
+- **API Docs (Swagger)**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-#### 1. Start PostgreSQL with PostGIS
-Ensure PostgreSQL with PostGIS extension is installed and running on port `5432`:
+> The backend automatically runs migrations and seeds initial categories, 25 citizen users, 85 incidents, and notifications on startup.
+
+---
+
+## 💻 Local Development (Without Docker)
+
+### 1. Prerequisites
+- Python 3.11+
+- Node.js 18+
+- PostgreSQL 14+ with PostGIS extension
+
+### 2. Database Setup
 ```sql
 CREATE DATABASE safecitydb;
 \c safecitydb
 CREATE EXTENSION IF NOT EXISTS postgis;
 ```
 
-#### 2. Configure Environment Variables
-Copy `.env.example` to `.env` inside `apps/backend/`:
+### 3. Backend Setup
 ```bash
 cd apps/backend
 cp .env.example .env
-```
-Ensure connection parameters match your PostgreSQL setup:
-```ini
-DATABASE_URL=postgresql+asyncpg://safecity:safecity_pass@localhost:5432/safecitydb
-DATABASE_URL_SYNC=postgresql://safecity:safecity_pass@localhost:5432/safecitydb
+# Edit .env with your database credentials
+
+python -m venv venv
+venv\Scripts\activate  # Windows
+# source venv/bin/activate  # Linux/Mac
+
+pip install -r requirements.txt
+alembic upgrade head
+python seed_data.py   # Seed articles, alerts
+python -m app.db.init_db  # Seed users, incidents
+
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-#### 3. Run Database Initialization & Seeding Script
-Execute the single initialization command:
+### 4. Frontend Setup
 ```bash
-python -m app.db.init_db
+cd apps/web
+npm install
+npm run dev
 ```
 
-Or run steps individually:
-- **Run Alembic Migrations**:
-  ```bash
-  alembic upgrade head
-  ```
-- **Seed Demo Data**:
-  ```bash
-  python -m app.db.seed_db
-  ```
+---
 
-#### 4. Run Backend & Frontend
-- **Backend**:
-  ```bash
-  uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-  ```
-- **Frontend**:
-  ```bash
-  # From workspace root
-  npm run dev:web
-  ```
+## 🔑 Default Credentials
 
-### Default Credentials
-- **Admin Account**: `admin@safecity.com` / `AdminPass123!`
-- **Demo Citizen User**: `aarav.sharma1@safecity.demo` / `UserPass123!`
+| Account | Email | Password |
+|---|---|---|
+| **Admin** | `admin@safecity.com` | `AdminPass123!` |
+| **Demo User** | `aarav.sharma1@safecity.demo` | `UserPass123!` |
 
+---
+
+## 📡 API Endpoints
+
+| Tag | Endpoint | Description |
+|---|---|---|
+| Auth | `POST /api/v1/auth/login` | Login |
+| Auth | `POST /api/v1/auth/register` | Register |
+| Incidents | `GET /api/v1/incidents` | List incidents |
+| Incidents | `POST /api/v1/incidents` | Create report |
+| Incidents | `GET /api/v1/incidents/nearby` | Spatial query |
+| Incidents | `GET /api/v1/incidents/heatmap` | Heatmap data |
+| Learning | `GET /api/v1/learning/articles` | List articles |
+| Learning | `GET /api/v1/learning/categories` | List categories |
+| Alerts | `GET /api/v1/alerts` | Active alerts |
+| Routes | `GET /api/v1/routes/plan` | Safe route |
+| SOS | `POST /api/v1/sos` | Trigger SOS |
+| Users | `GET /api/v1/users/me` | My profile |
+| Users | `GET /api/v1/users/me/contacts` | Emergency contacts |
+| Search | `GET /api/v1/search` | Global search |
+| Admin | `GET /api/v1/admin/stats` | Platform stats |
+
+Full interactive docs available at `/docs` (Swagger UI).
+
+---
+
+## 🗃️ Database Schema
+
+```
+users ──< user_profiles
+      ──< incidents ──< incident_images
+      ──< notifications
+      ──< emergency_contacts
+      ──< sos_requests
+
+incident_categories ──< incidents
+article_categories  ──< articles
+community_alerts
+```
+
+All geographic data uses **PostGIS Geography** type (SRID 4326) for accurate spatial queries.

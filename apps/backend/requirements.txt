@@ -34,6 +34,8 @@ httpx==0.27.0
 # Utilities
 python-dateutil==2.9.0
 pytz==2024.1
+polyline==2.0.2
+shapely==2.0.4
 
 # Testing
 pytest==8.2.0

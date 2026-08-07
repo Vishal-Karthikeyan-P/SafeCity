@@ -3,6 +3,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import L from 'leaflet'
 import 'leaflet'
 import { useNavigate } from 'react-router-dom'
+import polyline from '@mapbox/polyline'
 import type { Incident } from '@/types'
 import { getImageUrl, toTitleCase } from '@/lib/utils'
 
@@ -49,19 +50,25 @@ interface IncidentMapProps {
   height?: string
   onLocationSelect?: (lat: number, lng: number) => void
   selectedLocation?: { lat: number; lng: number } | null
+  heatmapData?: { lat: number; lng: number; weight: number }[]
+  routeData?: any // e.g. OSRM response with encoded polyline
 }
 
 export function IncidentMap({
   incidents,
-  center = [40.7128, -74.006],
+  center = [11.0168, 76.9558],
   zoom = 12,
   height = '500px',
   onLocationSelect,
   selectedLocation,
+  heatmapData,
+  routeData,
 }: IncidentMapProps) {
   const mapRef = useRef<L.Map | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const clusterGroupRef = useRef<any>(null)
+  const heatLayerRef = useRef<any>(null)
+  const routeLayerRef = useRef<any>(null)
   const navigate = useNavigate()
 
   // Initialize map
@@ -109,8 +116,8 @@ export function IncidentMap({
       map.removeLayer(clusterGroupRef.current)
     }
 
-    // Create MarkerClusterGroup (loaded via CDN)
-    const L_any = L as any
+    // Create MarkerClusterGroup (loaded via CDN or fallback)
+    const L_any = window.L as any || L as any
     const cluster = L_any.markerClusterGroup
       ? L_any.markerClusterGroup({
           maxClusterRadius: 60,
@@ -121,24 +128,30 @@ export function IncidentMap({
       : L.layerGroup()
 
     incidents.forEach((incident) => {
+      if (!incident || incident.location_lat == null || incident.location_lng == null) return
+
+      const categoryIcon = incident.category?.icon || '📍'
+      const categoryName = incident.category?.name || 'General'
+      const desc = incident.description || ''
+
       const marker = L.marker(
         [incident.location_lat, incident.location_lng],
-        { icon: createSeverityIcon(incident.severity, incident.category.icon) }
+        { icon: createSeverityIcon(incident.severity || 'low', categoryIcon) }
       )
 
       const popupContent = `
         <div style="font-family:Inter,sans-serif; min-width:200px; max-width:260px;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-            <span style="font-size:20px;">${incident.category.icon}</span>
+            <span style="font-size:20px;">${categoryIcon}</span>
             <div>
-              <p style="font-weight:600;font-size:13px;margin:0;line-height:1.3;">${incident.title}</p>
-              <p style="color:#6b7280;font-size:11px;margin:2px 0 0;">${incident.category.name}</p>
+              <p style="font-weight:600;font-size:13px;margin:0;line-height:1.3;">${incident.title || 'Incident'}</p>
+              <p style="color:#6b7280;font-size:11px;margin:2px 0 0;">${categoryName}</p>
             </div>
           </div>
-          <p style="font-size:11px;color:#374151;margin:0 0 8px;line-height:1.5;">${incident.description.slice(0, 100)}${incident.description.length > 100 ? '…' : ''}</p>
+          <p style="font-size:11px;color:#374151;margin:0 0 8px;line-height:1.5;">${desc.slice(0, 100)}${desc.length > 100 ? '…' : ''}</p>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
-            <span style="background:#f3f4f6;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;">${toTitleCase(incident.severity)}</span>
-            <span style="background:#f3f4f6;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;">${toTitleCase(incident.status)}</span>
+            <span style="background:#f3f4f6;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;">${toTitleCase(incident.severity || 'low')}</span>
+            <span style="background:#f3f4f6;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;">${toTitleCase(incident.status || 'pending')}</span>
           </div>
           <a href="/incidents/${incident.id}" style="display:block;text-align:center;background:#1d7eeb;color:white;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;margin-top:4px;">
             View Details →
@@ -173,6 +186,65 @@ export function IncidentMap({
       marker.remove()
     }
   }, [selectedLocation])
+
+  // Heatmap Layer
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    if (heatLayerRef.current) {
+      map.removeLayer(heatLayerRef.current)
+    }
+
+    if (heatmapData && heatmapData.length > 0 && (L as any).heatLayer) {
+      const heatPoints = heatmapData.map((p) => [p.lat, p.lng, p.weight])
+      heatLayerRef.current = (L as any).heatLayer(heatPoints, { radius: 25, blur: 15, maxZoom: 17 }).addTo(map)
+    }
+
+    return () => {
+      if (heatLayerRef.current && map) {
+        map.removeLayer(heatLayerRef.current)
+      }
+    }
+  }, [heatmapData])
+
+  // Route Layer
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    if (routeLayerRef.current) {
+      map.removeLayer(routeLayerRef.current)
+    }
+
+    if (routeData && routeData.geometry) {
+      const decoded = polyline.decode(routeData.geometry)
+      
+      const layerGroup = L.layerGroup()
+      
+      const routeLine = L.polyline(decoded, { color: routeData.route_risk_level === 'safe' ? '#22c55e' : routeData.route_risk_level === 'moderate' ? '#f59e0b' : '#ef4444', weight: 5 })
+      layerGroup.addLayer(routeLine)
+      
+      // Add markers for dangerous sections
+      if (routeData.dangerous_sections) {
+         routeData.dangerous_sections.forEach((sec: any) => {
+           const marker = L.circleMarker([sec.lat, sec.lng], { radius: 8, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.5 })
+           marker.bindPopup(`Dangerous Area (Score: ${sec.score})`)
+           layerGroup.addLayer(marker)
+         })
+      }
+      
+      routeLayerRef.current = layerGroup
+      map.addLayer(layerGroup)
+      map.fitBounds(routeLine.getBounds(), { padding: [50, 50] })
+    }
+
+    return () => {
+      if (routeLayerRef.current && map) {
+        map.removeLayer(routeLayerRef.current)
+      }
+    }
+  }, [routeData])
 
   return (
     <div

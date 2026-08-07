@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Search, Shield, Ban, CheckCircle } from 'lucide-react'
+import { Search, Shield, Ban, CheckCircle, UserCog } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { useAdminUsers } from '@/api/user'
+import { useAdminUsers, useChangeUserRole } from '@/api/user'
+import { useAuthStore } from '@/store/auth'
 import api from '@/lib/api'
 import { toast } from 'sonner'
 import { formatDate, getImageUrl } from '@/lib/utils'
@@ -15,6 +16,8 @@ export function AdminUsersPage() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const qc = useQueryClient()
+  const currentUser = useAuthStore((s) => s.user)
+  const { mutate: changeRole } = useChangeUserRole()
   
   const { data, isLoading } = useAdminUsers(page, 15, search)
 
@@ -108,17 +111,33 @@ export function AdminUsersPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {user.role !== 'admin' && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            className={user.is_active ? "text-red-500 hover:text-red-600 hover:bg-red-50" : "text-green-500 hover:text-green-600 hover:bg-green-50"}
-                            onClick={() => toggleUserStatus(user.id, user.is_active)}
-                          >
-                            {user.is_active ? <Ban className="w-4 h-4 mr-1" /> : <CheckCircle className="w-4 h-4 mr-1" />}
-                            {user.is_active ? 'Suspend' : 'Activate'}
-                          </Button>
-                        )}
+                        <div className="flex items-center justify-end gap-1">
+                          {currentUser?.id !== user.id && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={user.role === 'admin'
+                                ? "text-purple-500 hover:text-purple-600 hover:bg-purple-50"
+                                : "text-blue-500 hover:text-blue-600 hover:bg-blue-50"}
+                              onClick={() => changeRole({ userId: user.id, role: user.role === 'admin' ? 'citizen' : 'admin' })}
+                              title={user.role === 'admin' ? 'Demote to Citizen' : 'Promote to Admin'}
+                            >
+                              <UserCog className="w-4 h-4 mr-1" />
+                              {user.role === 'admin' ? 'Demote' : 'Promote'}
+                            </Button>
+                          )}
+                          {user.role !== 'admin' && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className={user.is_active ? "text-red-500 hover:text-red-600 hover:bg-red-50" : "text-green-500 hover:text-green-600 hover:bg-green-50"}
+                              onClick={() => toggleUserStatus(user.id, user.is_active)}
+                            >
+                              {user.is_active ? <Ban className="w-4 h-4 mr-1" /> : <CheckCircle className="w-4 h-4 mr-1" />}
+                              {user.is_active ? 'Suspend' : 'Activate'}
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))

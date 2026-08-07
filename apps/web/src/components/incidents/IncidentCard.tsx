@@ -6,6 +6,9 @@ import { Button } from '@/components/ui/button'
 import { cn, timeAgo, truncate, toTitleCase, getImageUrl } from '@/lib/utils'
 import type { Incident, SeverityLevel, IncidentStatus } from '@/types'
 
+const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f3f4f6'/%3E%3Ctext x='50' y='40' font-size='30' text-anchor='middle' dominant-baseline='middle' fill='%23f59e0b'%3E⚠%3C/text%3E%3Ctext x='50' y='65' font-size='10' text-anchor='middle' fill='%236b7280'%3ENo Image%3C/text%3E%3C/svg%3E"
+
+
 interface IncidentCardProps {
   incident: Incident
   compact?: boolean
@@ -32,6 +35,7 @@ export function IncidentCard({ incident, compact = false }: IncidentCardProps) {
             src={getImageUrl(incident.images[0].url)}
             alt={incident.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_IMG }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
           <div className="absolute bottom-3 left-3 flex gap-2">

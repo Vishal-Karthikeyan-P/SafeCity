@@ -12,6 +12,7 @@ import { RegisterPage } from '@/pages/auth/RegisterPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { MapPage } from '@/pages/MapPage'
 import { IncidentsPage } from '@/pages/incidents/IncidentsPage'
+import { MyIncidentsPage } from '@/pages/incidents/MyIncidentsPage'
 import { IncidentDetailPage } from '@/pages/incidents/IncidentDetailPage'
 import { ReportIncidentPage } from '@/pages/incidents/ReportIncidentPage'
 import { ProfilePage } from '@/pages/ProfilePage'
@@ -20,6 +21,9 @@ import { AdminIncidentsPage } from '@/pages/admin/AdminIncidentsPage'
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage'
 import { AdminCategoriesPage } from '@/pages/admin/AdminCategoriesPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+import { LearningHubPage } from '@/pages/LearningHubPage'
+import { AlertsPage } from '@/pages/AlertsPage'
+import { NotificationsPage } from '@/pages/NotificationsPage'
 
 // Route guards
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -68,8 +72,12 @@ export default function App() {
           <Route path="/map" element={<MapPage />} />
           <Route path="/incidents" element={<IncidentsPage />} />
           <Route path="/incidents/new" element={<ReportIncidentPage />} />
+          <Route path="/incidents/my" element={<MyIncidentsPage />} />
           <Route path="/incidents/:id" element={<IncidentDetailPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/learning" element={<LearningHubPage />} />
+          <Route path="/alerts" element={<AlertsPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
         </Route>
 
         {/* Admin routes */}

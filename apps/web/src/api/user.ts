@@ -55,6 +55,20 @@ export function useAdminUsers(page = 1, limit = 10, search = '') {
   })
 }
 
+export function useChangeUserRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: 'admin' | 'citizen' }) => {
+      const res = await api.patch(`/admin/users/${userId}/role`, { role })
+      return res.data
+    },
+    onSuccess: (_, { role }) => {
+      qc.invalidateQueries({ queryKey: ['admin-users'] })
+      toast.success(`User role changed to ${role}`)
+    },
+  })
+}
+
 export function useAdminCategories() {
   return useQuery({
     queryKey: ['admin-categories'],
@@ -104,6 +118,73 @@ export function useUploadAvatar() {
       qc.invalidateQueries({ queryKey: ['me'] })
       toast.success('Avatar updated')
       return data
+    },
+  })
+}
+
+// ── Emergency Contacts ────────────────────────────────────────
+
+export function useEmergencyContacts() {
+  return useQuery({
+    queryKey: ['emergency-contacts'],
+    queryFn: async () => {
+      const res = await api.get('/users/me/contacts')
+      return res.data as any[]
+    },
+  })
+}
+
+export function useAddEmergencyContact() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const res = await api.post('/users/me/contacts', data)
+      return res.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['emergency-contacts'] })
+      toast.success('Emergency contact added')
+    },
+  })
+}
+
+export function useUpdateEmergencyContact() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...data }: any) => {
+      const res = await api.patch(`/users/me/contacts/${id}`, data)
+      return res.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['emergency-contacts'] })
+      toast.success('Emergency contact updated')
+    },
+  })
+}
+
+export function useDeleteEmergencyContact() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/users/me/contacts/${id}`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['emergency-contacts'] })
+      toast.success('Emergency contact removed')
+    },
+  })
+}
+
+// ── Account Management ────────────────────────────────────────
+
+export function useDeleteAccount() {
+  return useMutation({
+    mutationFn: async () => {
+      await api.delete('/users/me')
+    },
+    onSuccess: () => {
+      toast.success('Account deleted')
+      // Let the UI handle redirect/logout
     },
   })
 }

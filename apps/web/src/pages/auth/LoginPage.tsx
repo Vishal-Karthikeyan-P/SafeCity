@@ -82,14 +82,9 @@ export function LoginPage() {
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Don't have an account?{' '}
           <Link to="/register" className="text-primary font-medium hover:underline">
-            Create one free
+            Create one now
           </Link>
         </p>
-      </div>
-
-      {/* Demo credentials hint */}
-      <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl text-xs text-blue-600 dark:text-blue-400">
-        <strong>Demo:</strong> Register a new account or use admin credentials from your backend seed.
       </div>
     </div>
   )

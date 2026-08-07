@@ -5,6 +5,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
@@ -66,6 +67,40 @@ async def list_incidents(
         status=status, date_from=date_from, date_to=date_to, search=search,
     )
     return await service.list_incidents(filters)
+
+class HeatmapPoint(BaseModel):
+    lat: float
+    lng: float
+    weight: int
+
+@router.get("/heatmap", response_model=List[HeatmapPoint])
+async def get_heatmap(
+    category_id: Optional[str] = None,
+    severity: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get points for heatmap visualization."""
+    service = IncidentService(db)
+    # Reusing list_incidents with large limit to get heatmap data
+    filters = IncidentFilters(
+        page=1, limit=5000, category_id=category_id, severity=severity,
+        status="approved", date_from=date_from, date_to=date_to, search=None,
+    )
+    incidents_resp = await service.list_incidents(filters)
+    
+    weights = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+    
+    points = []
+    for inc in incidents_resp.items:
+        points.append(HeatmapPoint(
+            lat=inc.location_lat,
+            lng=inc.location_lng,
+            weight=weights.get(inc.severity, 1)
+        ))
+        
+    return points
 
 
 @router.post("", response_model=IncidentSchema, status_code=201)

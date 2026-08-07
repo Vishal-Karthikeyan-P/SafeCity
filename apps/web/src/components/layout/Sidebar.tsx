@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, Map, AlertTriangle, Plus, User, Bell, Shield, Settings
+  LayoutDashboard, Map, AlertTriangle, Plus, User, Bell, Shield, Settings, BookOpen, BellRing, FileText
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -10,7 +10,11 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/map', label: 'Live Map', icon: Map },
   { href: '/incidents', label: 'Incidents', icon: AlertTriangle },
+  { href: '/incidents/my', label: 'My Reports', icon: FileText },
   { href: '/incidents/new', label: 'Report', icon: Plus },
+  { href: '/learning', label: 'Learning Hub', icon: BookOpen },
+  { href: '/alerts', label: 'Alerts', icon: BellRing },
+  { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/profile', label: 'Profile', icon: User },
 ]
 
@@ -38,7 +42,8 @@ export function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 p-4 space-y-1">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
+          const isActive = pathname === href || (href !== '/dashboard' && pathname.startsWith(href) && href !== '/incidents')
+          const isNotif = href === '/notifications'
           return (
             <Link
               key={href}
@@ -52,23 +57,14 @@ export function Sidebar() {
                   +
                 </span>
               )}
+              {isNotif && unread > 0 && (
+                <span className="ml-auto bg-danger text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              )}
             </Link>
           )
         })}
-
-        {/* Notifications */}
-        <Link
-          to="/dashboard"
-          className={cn('nav-item relative')}
-        >
-          <Bell className="w-4 h-4 shrink-0" />
-          <span>Notifications</span>
-          {unread > 0 && (
-            <span className="ml-auto bg-danger text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
-              {unread > 9 ? '9+' : unread}
-            </span>
-          )}
-        </Link>
 
         {/* Admin */}
         {user?.role === 'admin' && (

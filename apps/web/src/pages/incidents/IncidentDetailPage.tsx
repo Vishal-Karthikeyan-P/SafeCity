@@ -7,6 +7,10 @@ import { IncidentMap } from '@/components/map/IncidentMap'
 import { useIncident } from '@/api/incidents'
 import { formatDate, timeAgo, toTitleCase, getImageUrl } from '@/lib/utils'
 import type { SeverityLevel, IncidentStatus } from '@/types'
+import { toast } from 'sonner'
+
+const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f3f4f6'/%3E%3Ctext x='50' y='40' font-size='30' text-anchor='middle' dominant-baseline='middle' fill='%23f59e0b'%3E⚠%3C/text%3E%3Ctext x='50' y='65' font-size='10' text-anchor='middle' fill='%236b7280'%3ENo Image%3C/text%3E%3C/svg%3E"
+
 
 export function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -57,6 +61,7 @@ export function IncidentDetailPage() {
                   src={getImageUrl(img.url)}
                   alt={`Evidence ${idx + 1}`}
                   className="w-full h-full object-cover"
+                  onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_IMG }}
                 />
                 {idx === 3 && incident.images.length > 4 && (
                   <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
@@ -127,7 +132,15 @@ export function IncidentDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigator.share?.({ title: incident.title, url: window.location.href })}
+              onClick={async () => {
+                const url = window.location.href
+                if (navigator.share) {
+                  try { await navigator.share({ title: incident.title, url }) } catch {}
+                } else {
+                  await navigator.clipboard.writeText(url)
+                  toast.success('Link copied to clipboard!')
+                }
+              }}
             >
               <Share2 className="w-4 h-4 mr-1" />
               Share

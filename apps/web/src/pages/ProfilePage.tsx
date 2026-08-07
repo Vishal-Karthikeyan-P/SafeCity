@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuthStore } from '@/store/auth'
-import { useUpdateProfile, useChangePassword, useUploadAvatar } from '@/api/user'
+import { useUpdateProfile, useChangePassword, useUploadAvatar, useEmergencyContacts, useDeleteEmergencyContact, useAddEmergencyContact, useDeleteAccount } from '@/api/user'
 import { updateProfileSchema, changePasswordSchema, type UpdateProfileValues, type ChangePasswordValues } from '@/lib/schemas'
 import { getImageUrl } from '@/lib/utils'
 
@@ -16,6 +16,11 @@ export function ProfilePage() {
   const { mutate: updateProfile, isPending: isUpdating } = useUpdateProfile()
   const { mutate: changePassword, isPending: isChangingPwd } = useChangePassword()
   const { mutate: uploadAvatar, isPending: isUploadingAvatar } = useUploadAvatar()
+  
+  const { data: contacts, isLoading: contactsLoading } = useEmergencyContacts()
+  const { mutate: deleteContact } = useDeleteEmergencyContact()
+  const { mutate: addContact } = useAddEmergencyContact()
+  const { mutate: deleteAccount } = useDeleteAccount()
 
   const {
     register: registerProfile,
@@ -29,8 +34,6 @@ export function ProfilePage() {
       bio: user?.profile?.bio || '',
       city: user?.profile?.city || '',
       country: user?.profile?.country || '',
-      emergency_contact_name: user?.profile?.emergency_contact_name || '',
-      emergency_contact_phone: user?.profile?.emergency_contact_phone || '',
     },
   })
 
@@ -138,20 +141,6 @@ export function ProfilePage() {
                   </div>
                 </div>
 
-                <div className="pt-4 border-t">
-                  <h3 className="font-semibold text-sm mb-4">Emergency Contact</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-1.5" htmlFor="em_name">Name</label>
-                      <Input id="em_name" {...registerProfile('emergency_contact_name')} />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1.5" htmlFor="em_phone">Phone</label>
-                      <Input id="em_phone" {...registerProfile('emergency_contact_phone')} />
-                    </div>
-                  </div>
-                </div>
-
                 <div className="flex justify-end pt-4">
                   <Button type="submit" loading={isUpdating}>
                     <Save className="w-4 h-4 mr-2" />
@@ -159,6 +148,73 @@ export function ProfilePage() {
                   </Button>
                 </div>
               </form>
+            </CardContent>
+          </Card>
+          
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Emergency Contacts</CardTitle>
+              <CardDescription>People to notify during an SOS emergency (max 5).</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {contactsLoading ? (
+                <p className="text-sm text-gray-500">Loading contacts...</p>
+              ) : contacts?.length === 0 ? (
+                <p className="text-sm text-gray-500">No emergency contacts added yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {contacts?.map((contact: any) => (
+                    <div key={contact.id} className="flex justify-between items-center p-3 border rounded-md">
+                      <div>
+                        <p className="font-medium">{contact.name}</p>
+                        <p className="text-sm text-gray-500">{contact.phone} • {contact.contact_relation}</p>
+                      </div>
+                      <Button variant="destructive" size="sm" onClick={() => deleteContact(contact.id)}>Remove</Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {(!contacts || contacts.length < 5) && (
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    const fd = new FormData(e.currentTarget)
+                    addContact({
+                      name: fd.get('name') as string,
+                      phone: fd.get('phone') as string,
+                      contact_relation: fd.get('relation') as string,
+                    }, {
+                      onSuccess: () => {
+                         // @ts-ignore
+                         e.target.reset()
+                      }
+                    })
+                  }} 
+                  className="pt-4 border-t mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2"
+                >
+                  <Input name="name" placeholder="Name" required />
+                  <Input name="phone" placeholder="Phone" required />
+                  <Input name="relation" placeholder="Relation (e.g. Brother)" required />
+                  <Button type="submit" className="sm:col-span-3">Add Contact</Button>
+                </form>
+              )}
+            </CardContent>
+          </Card>
+          
+          <Card className="mt-6 border-red-200">
+            <CardHeader>
+              <CardTitle className="text-red-600">Danger Zone</CardTitle>
+              <CardDescription>Permanently delete your account and all associated data.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button variant="destructive" onClick={() => {
+                if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+                   deleteAccount()
+                }
+              }}>
+                Delete Account
+              </Button>
             </CardContent>
           </Card>
         </div>

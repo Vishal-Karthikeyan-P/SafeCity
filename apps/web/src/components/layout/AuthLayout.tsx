@@ -33,13 +33,13 @@ export function AuthLayout() {
           {/* Stats */}
           <div className="mt-10 grid grid-cols-3 gap-6">
             {[
-              { value: '50K+', label: 'Reports Filed' },
-              { value: '200+', label: 'Cities' },
-              { value: '98%', label: 'Resolution Rate' },
+              { value: '24/7', label: 'Safety assistance' },
+              { value: 'Realtime', label: 'Safety insights' },
+              { value: 'Community driven', label: 'safety reporting' },
             ].map((s) => (
               <div key={s.label} className="glass-card rounded-2xl p-4 text-center">
-                <p className="text-2xl font-bold text-white">{s.value}</p>
-                <p className="text-primary-300 text-xs mt-1">{s.label}</p>
+                <p className="text-2xl font-bold text-slate-900">{s.value}</p>
+                <p className="text-blue-800 text-xs mt-1 font-semibold">{s.label}</p>
               </div>
             ))}
           </div>

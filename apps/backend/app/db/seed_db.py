@@ -28,9 +28,9 @@ from app.models.notification import Notification, NotificationType
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Base location for sample city grid (e.g., Bangalore Metro Area)
-CITY_BASE_LAT = 12.9716
-CITY_BASE_LNG = 77.5946
+# Base location for sample city grid (Coimbatore, Tamil Nadu)
+CITY_BASE_LAT = 11.0168
+CITY_BASE_LNG = 76.9558
 
 CATEGORIES_DATA = [
     {"name": "Crime", "slug": "crime", "icon": "🚨", "color": "#EF4444", "description": "Theft, assault, robbery, or vandalism."},
@@ -54,14 +54,14 @@ LAST_NAMES = [
 ]
 
 STREETS = [
-    "100 Feet Road, Indiranagar", "MG Road Metro Station", "Koramangala 4th Block",
-    "Brigade Road Junction", "Commercial Street", "HSR Layout Sector 1",
-    "Whitefield Main Road", "Jayanagar 4th T Block", "Malleshwaram 8th Cross",
-    "Electronic City Phase 1", "Hebbal Flyover Junction", "Marathahalli Bridge",
-    "BTM Layout 2nd Stage", "Rajajinagar Metro Station", "Richmond Road Plaza",
-    "Old Airport Road", "Ulsoor Lake Road", "Domlur Intermediate Ring Road",
-    "Residency Road", "Cunningham Road", "Kalyan Nagar Main Road",
-    "Banashankari 3rd Stage", "Vasanth Nagar", "Bellandur Flyover", "Yelahanka New Town"
+    "Gandhipuram Town Bus Stand, Gandhipuram", "DB Road, RS Puram", "Lakshmi Mills Junction, Avinashi Road",
+    "Tidel Park, Peelamedu", "Ukkadam Bus Terminus, Ukkadam", "Singanallur Junction, Trichy Road",
+    "Saibaba Colony Bus Stop, Mettupalayam Road", "Cross Cut Road, Gandhipuram", "Ramanathapuram Junction, Trichy Road",
+    "Coimbatore Junction Railway Station", "Brookefields Mall, TV Samy Road", "Fun Republic Mall, Avinashi Road",
+    "Town Hall Main Road, Town Hall", "Thudiyalur Junction, Mettupalayam Road", "Saravanampatti Checkpost, IT Corridor",
+    "Race Course Road Promenade, Race Course", "Vadavalli Bus Stand, Marudhamalai Road", "Kovaipudur Center, Kovaipudur",
+    "Ganapathy Signal, Sathy Road", "Sitra Junction, Airport Road", "Hope College Bus Stop, Avinashi Road",
+    "Ondipudur Flyover, Trichy Road", "Podanur Junction, Podanur", "Perur Temple Road, Perur", "Kuniyamuthur Main Road, Palakkad Road"
 ]
 
 INCIDENT_TITLES = {
@@ -184,7 +184,7 @@ async def seed_database(db: AsyncSession):
                 bio=f"Active citizen contributor residing in Metro Zone {i%5 + 1}.",
                 emergency_contact_name=f"{LAST_NAMES[(i+2)%len(LAST_NAMES)]} Contact",
                 emergency_contact_phone=f"+9197{random.randint(10000000, 99999999)}",
-                city="Bangalore",
+                city="Coimbatore",
                 country="India"
             )
             db.add(profile)
@@ -193,12 +193,14 @@ async def seed_database(db: AsyncSession):
 
     logger.info(f"Ensured {len(users)} users (1 Admin + 25 Citizens).")
 
-    # Check existing incidents count
+    # Clear existing incidents to ensure fresh Coimbatore dataset
     result = await db.execute(select(Incident))
     existing_incidents = result.scalars().all()
-    if len(existing_incidents) >= 75:
-        logger.info(f"Database already contains {len(existing_incidents)} incidents. Skipping incident generation.")
-        return
+    if existing_incidents:
+        logger.info(f"Clearing {len(existing_incidents)} previous incidents for Coimbatore dataset update...")
+        for old_inc in existing_incidents:
+            await db.delete(old_inc)
+        await db.flush()
 
     # 4. Generate 85 Realistic Incidents
     severities = [SeverityLevel.LOW, SeverityLevel.MEDIUM, SeverityLevel.HIGH, SeverityLevel.CRITICAL]
@@ -247,7 +249,7 @@ async def seed_database(db: AsyncSession):
             severity=severity,
             status=status,
             is_anonymous=is_anon,
-            location_address=f"{street}, Bangalore, Karnataka",
+            location_address=f"{street}, Coimbatore, Tamil Nadu",
             location_lat=lat,
             location_lng=lng,
             location_geom=geom,

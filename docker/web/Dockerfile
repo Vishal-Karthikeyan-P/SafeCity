@@ -3,15 +3,20 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy root package files
-COPY package.json ./
-# Copy shared package
-COPY shared ./shared
-# Copy web app
-COPY apps/web ./apps/web
+# Copy root package files and lockfile
+COPY package.json package-lock.json ./
+
+# Copy package.json of workspaces to install dependencies correctly
+COPY shared/package.json ./shared/
+COPY apps/web/package.json ./apps/web/
+COPY apps/mobile/package.json ./apps/mobile/
 
 # Install dependencies for workspaces
-RUN npm install
+RUN npm ci
+
+# Copy source code files
+COPY shared ./shared
+COPY apps/web ./apps/web
 
 # Build the web app
 WORKDIR /app/apps/web
