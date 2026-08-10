@@ -16,7 +16,7 @@ async def list_categories(db: AsyncSession = Depends(get_db)):
 @router.get("/articles", response_model=ArticleListResponse)
 async def list_articles(
     page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
+    limit: int = Query(10, ge=1, le=1000),
     category_id: Optional[str] = None,
     search: Optional[str] = None,
     db: AsyncSession = Depends(get_db)

@@ -50,8 +50,10 @@ interface IncidentMapProps {
   height?: string
   onLocationSelect?: (lat: number, lng: number) => void
   selectedLocation?: { lat: number; lng: number } | null
+  startLocation?: { lat: number; lng: number } | null
+  destLocation?: { lat: number; lng: number } | null
   heatmapData?: { lat: number; lng: number; weight: number }[]
-  routeData?: any // e.g. OSRM response with encoded polyline
+  routeData?: any // RouteData from our API
 }
 
 export function IncidentMap({
@@ -61,6 +63,8 @@ export function IncidentMap({
   height = '500px',
   onLocationSelect,
   selectedLocation,
+  startLocation,
+  destLocation,
   heatmapData,
   routeData,
 }: IncidentMapProps) {
@@ -69,7 +73,13 @@ export function IncidentMap({
   const clusterGroupRef = useRef<any>(null)
   const heatLayerRef = useRef<any>(null)
   const routeLayerRef = useRef<any>(null)
+  const onLocationSelectRef = useRef(onLocationSelect)
   const navigate = useNavigate()
+
+  // Always keep location select ref updated to avoid stale closures
+  useEffect(() => {
+    onLocationSelectRef.current = onLocationSelect
+  }, [onLocationSelect])
 
   // Initialize map
   useEffect(() => {
@@ -92,11 +102,11 @@ export function IncidentMap({
     L.control.zoom({ position: 'bottomright' }).addTo(map)
 
     // Click to select location
-    if (onLocationSelect) {
-      map.on('click', (e: L.LeafletMouseEvent) => {
-        onLocationSelect(e.latlng.lat, e.latlng.lng)
-      })
-    }
+    map.on('click', (e: L.LeafletMouseEvent) => {
+      if (onLocationSelectRef.current) {
+        onLocationSelectRef.current(e.latlng.lat, e.latlng.lng)
+      }
+    })
 
     mapRef.current = map
 
@@ -167,20 +177,64 @@ export function IncidentMap({
     clusterGroupRef.current = cluster
   }, [incidents])
 
-  // Selected location marker
+  // Start and Dest markers
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    const markers: L.Marker[] = []
+
+    if (startLocation) {
+      const marker = L.marker([startLocation.lat, startLocation.lng], {
+        icon: L.divIcon({
+          html: `<div style="width:20px;height:20px;background:#22c55e;border:3px solid white;border-radius:50%;box-shadow:0 0 0 4px rgba(34,197,94,0.3);animation:pulse 1.5s infinite;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:12px;">S</div>`,
+          className: '',
+          iconSize: [20, 20],
+          iconAnchor: [10, 10],
+        }),
+      })
+      marker.addTo(map)
+      markers.push(marker)
+    }
+
+    if (destLocation) {
+      const marker = L.marker([destLocation.lat, destLocation.lng], {
+        icon: L.divIcon({
+          html: `<div style="width:20px;height:20px;background:#3b82f6;border:3px solid white;border-radius:50%;box-shadow:0 0 0 4px rgba(59,130,246,0.3);animation:pulse 1.5s infinite;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:12px;">D</div>`,
+          className: '',
+          iconSize: [20, 20],
+          iconAnchor: [10, 10],
+        }),
+      })
+      marker.addTo(map)
+      markers.push(marker)
+    }
+
+    return () => {
+      markers.forEach(m => m.remove())
+    }
+  }, [startLocation, destLocation])
+
+  // Selected Location marker pin
   useEffect(() => {
     const map = mapRef.current
     if (!map || !selectedLocation) return
 
     const marker = L.marker([selectedLocation.lat, selectedLocation.lng], {
       icon: L.divIcon({
-        html: `<div style="width:16px;height:16px;background:#1d7eeb;border:3px solid white;border-radius:50%;box-shadow:0 0 0 4px rgba(29,126,235,0.3);animation:pulse 1.5s infinite;"></div>`,
+        html: `
+          <div style="position:relative; width:32px; height:32px;">
+            <div style="position:absolute; width:100%; height:100%; border-radius:50%; background:#ef4444; opacity:0.4; animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>
+            <div style="position:relative; width:32px; height:32px; border-radius:50%; background:#ef4444; border:3px solid white; box-shadow:0 4px 12px rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; color:white; font-size:16px;">
+              📍
+            </div>
+          </div>
+        `,
         className: '',
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
       }),
-    })
-    marker.addTo(map)
+    }).addTo(map)
 
     return () => {
       marker.remove()
@@ -222,17 +276,8 @@ export function IncidentMap({
       
       const layerGroup = L.layerGroup()
       
-      const routeLine = L.polyline(decoded, { color: routeData.route_risk_level === 'safe' ? '#22c55e' : routeData.route_risk_level === 'moderate' ? '#f59e0b' : '#ef4444', weight: 5 })
+      const routeLine = L.polyline(decoded, { color: routeData.route_risk_level === 'safe' ? '#22c55e' : routeData.route_risk_level === 'moderate' ? '#f59e0b' : '#ef4444', weight: 6, opacity: 0.8 })
       layerGroup.addLayer(routeLine)
-      
-      // Add markers for dangerous sections
-      if (routeData.dangerous_sections) {
-         routeData.dangerous_sections.forEach((sec: any) => {
-           const marker = L.circleMarker([sec.lat, sec.lng], { radius: 8, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.5 })
-           marker.bindPopup(`Dangerous Area (Score: ${sec.score})`)
-           layerGroup.addLayer(marker)
-         })
-      }
       
       routeLayerRef.current = layerGroup
       map.addLayer(layerGroup)

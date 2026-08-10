@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy import func
 from typing import List, Optional, Tuple
 from app.models.learning import Article, ArticleCategory
@@ -13,11 +14,15 @@ class LearningRepository:
         return list(result.scalars().all())
 
     async def get_article_by_slug(self, slug: str) -> Optional[Article]:
-        result = await self.db.execute(select(Article).where(Article.slug == slug))
+        result = await self.db.execute(
+            select(Article).options(selectinload(Article.category)).where(Article.slug == slug)
+        )
         return result.scalar_one_or_none()
         
     async def get_article_by_id(self, article_id: str) -> Optional[Article]:
-        result = await self.db.execute(select(Article).where(Article.id == article_id))
+        result = await self.db.execute(
+            select(Article).options(selectinload(Article.category)).where(Article.id == article_id)
+        )
         return result.scalar_one_or_none()
 
     async def list_articles(self, page: int = 1, limit: int = 10, category_id: Optional[str] = None, search: Optional[str] = None) -> Tuple[List[Article], int]:
@@ -34,8 +39,9 @@ class LearningRepository:
         total = await self.db.scalar(count_query) or 0
         
         # Pagination
-        query = query.order_by(Article.created_at.desc()).offset((page - 1) * limit).limit(limit)
+        query = query.options(selectinload(Article.category)).order_by(Article.created_at.desc()).offset((page - 1) * limit).limit(limit)
         result = await self.db.execute(query)
         articles = list(result.scalars().all())
         
         return articles, total
+

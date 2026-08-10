@@ -9,6 +9,7 @@ import { useNotifications } from '@/api/user'
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/map', label: 'Live Map', icon: Map },
+  { href: '/route-plan', label: 'Route Plan', icon: Map },
   { href: '/incidents', label: 'Incidents', icon: AlertTriangle },
   { href: '/incidents/my', label: 'My Reports', icon: FileText },
   { href: '/incidents/new', label: 'Report', icon: Plus },

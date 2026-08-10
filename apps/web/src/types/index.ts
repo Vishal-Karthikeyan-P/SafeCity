@@ -118,3 +118,29 @@ export interface AdminStats {
   active_users: number
   new_users_this_month: number
 }
+
+export interface RouteIncident {
+  id: string
+  title: string
+  description: string
+  severity: SeverityLevel
+  lat: number
+  lng: number
+  category_icon: string
+  category_name: string
+}
+
+export interface RouteData {
+  geometry: string
+  distance_m: number
+  duration_s: number
+  safety_score: number
+  route_risk_level: 'safe' | 'moderate' | 'unsafe'
+  incidents: RouteIncident[]
+}
+
+export interface RoutePlanResponse {
+  routes: RouteData[]
+  shortest_route_idx: number
+  safest_route_idx: number
+}

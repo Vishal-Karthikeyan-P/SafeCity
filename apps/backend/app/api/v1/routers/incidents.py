@@ -51,7 +51,7 @@ async def list_nearby(
 @router.get("", response_model=IncidentListResponse)
 async def list_incidents(
     page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
+    limit: int = Query(10, ge=1, le=1000),
     category_id: Optional[str] = None,
     severity: Optional[str] = None,
     status: Optional[str] = None,

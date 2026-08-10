@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Layers, Filter, LocateFixed, Route, Flame } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Layers, Filter, LocateFixed, Route, Flame, MapPin, AlertTriangle, X } from 'lucide-react'
 import { IncidentMap } from '@/components/map/IncidentMap'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,8 +14,10 @@ import { IncidentCard } from '@/components/incidents/IncidentCard'
 import type { Incident } from '@/types'
 
 export function MapPage() {
+  const navigate = useNavigate()
   const { category_id, severity } = useFilterStore()
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
+  const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null)
   const [localCategory, setLocalCategory] = useState<string | null>(null)
   const [localSeverity, setLocalSeverity] = useState<string | null>(null)
@@ -117,13 +120,21 @@ export function MapPage() {
         </div>
       )}
       
-      {routeData && !routeData.error && showRoutePlan && (
-        <div className={`p-4 rounded-xl border ${routeData.route_risk_level === 'safe' ? 'bg-green-50 border-green-200' : routeData.route_risk_level === 'moderate' ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'} flex gap-4 text-sm animate-fade-in`}>
-          <div><strong>Safety Score:</strong> {routeData.safety_score.toFixed(0)}/100</div>
-          <div><strong>Distance:</strong> {(routeData.distance_m / 1000).toFixed(2)} km</div>
-          <div><strong>Duration:</strong> {Math.round(routeData.duration_s / 60)} min</div>
-        </div>
-      )}
+      {(() => {
+        const safestRoute = routeData && routeData.routes && routeData.routes.length > 0 
+          ? routeData.routes[routeData.safest_route_idx ?? 0] 
+          : null
+        
+        if (!safestRoute || !showRoutePlan) return null
+
+        return (
+          <div className={`p-4 rounded-xl border ${safestRoute.route_risk_level === 'safe' ? 'bg-green-50 border-green-200 dark:bg-green-950/30' : safestRoute.route_risk_level === 'moderate' ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950/30' : 'bg-red-50 border-red-200 dark:bg-red-950/30'} flex gap-4 text-sm animate-fade-in`}>
+            <div><strong>Safety Score:</strong> {safestRoute.safety_score.toFixed(0)}/100</div>
+            <div><strong>Distance:</strong> {(safestRoute.distance_m / 1000).toFixed(2)} km</div>
+            <div><strong>Duration:</strong> {Math.round(safestRoute.duration_s / 60)} min</div>
+          </div>
+        )
+      })()}
 
       {/* Filters */}
       {showFilters && (
@@ -161,14 +172,58 @@ export function MapPage() {
       )}
 
       {/* Map */}
-      <div className="rounded-2xl overflow-hidden shadow-xl">
+      <div className="rounded-2xl overflow-hidden shadow-xl relative">
+        {clickedLocation && (
+          <div className="absolute top-4 left-4 right-4 sm:left-auto sm:right-4 z-[1000] bg-card/95 backdrop-blur border p-4 rounded-2xl shadow-2xl max-w-sm animate-fade-in space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
+                  📍
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase">Selected Location</p>
+                  <p className="text-sm font-bold">{clickedLocation.lat.toFixed(4)}, {clickedLocation.lng.toFixed(4)}</p>
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={() => setClickedLocation(null)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <div className="flex flex-col gap-2 pt-1">
+              <Button 
+                size="sm" 
+                className="w-full justify-start text-xs font-medium"
+                onClick={() => navigate(`/incidents/report?lat=${clickedLocation.lat}&lng=${clickedLocation.lng}`)}
+              >
+                <AlertTriangle className="w-3.5 h-3.5 mr-2" />
+                Report Incident at this Location
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="w-full justify-start text-xs font-medium"
+                onClick={() => {
+                  setRouteStart(`${clickedLocation.lat.toFixed(4)}, ${clickedLocation.lng.toFixed(4)}`)
+                  setShowRoutePlan(true)
+                }}
+              >
+                <Route className="w-3.5 h-3.5 mr-2" />
+                Set as Route Starting Point
+              </Button>
+            </div>
+          </div>
+        )}
+
         <IncidentMap
           incidents={!showHeatmap ? incidents : []}
           heatmapData={showHeatmap ? heatmapData : undefined}
-          routeData={showRoutePlan && activeRoutePoints ? routeData : undefined}
-          center={userLocation ?? [11.0168, 76.9558]}
-          zoom={userLocation ? 14 : 12}
+          routeData={showRoutePlan && activeRoutePoints && routeData?.routes?.length ? routeData.routes[routeData.safest_route_idx ?? 0] : undefined}
+          center={clickedLocation ? [clickedLocation.lat, clickedLocation.lng] : (userLocation ?? [11.0168, 76.9558])}
+          zoom={clickedLocation ? 14 : (userLocation ? 14 : 12)}
           height="600px"
+          onLocationSelect={(lat, lng) => setClickedLocation({ lat, lng })}
+          selectedLocation={clickedLocation}
         />
       </div>
 

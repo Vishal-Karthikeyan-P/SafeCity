@@ -11,6 +11,7 @@ import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { MapPage } from '@/pages/MapPage'
+import { RoutePlanPage } from '@/pages/RoutePlanPage'
 import { IncidentsPage } from '@/pages/incidents/IncidentsPage'
 import { MyIncidentsPage } from '@/pages/incidents/MyIncidentsPage'
 import { IncidentDetailPage } from '@/pages/incidents/IncidentDetailPage'
@@ -70,6 +71,7 @@ export default function App() {
         >
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/map" element={<MapPage />} />
+          <Route path="/route-plan" element={<RoutePlanPage />} />
           <Route path="/incidents" element={<IncidentsPage />} />
           <Route path="/incidents/new" element={<ReportIncidentPage />} />
           <Route path="/incidents/my" element={<MyIncidentsPage />} />

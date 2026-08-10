@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { MapPin, Image as ImageIcon, X, AlertTriangle, ArrowRight, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,12 +15,13 @@ import { toast } from 'sonner'
 
 export function ReportIncidentPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { data: categories = [] } = useCategories()
   const { mutateAsync: createIncident, isPending: isCreating } = useCreateIncident()
   const { mutateAsync: uploadImages, isPending: isUploading } = useUploadImages()
 
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null)
-  const [mapCenter, setMapCenter] = useState<[number, number]>([20.5937, 78.9629]) // India default
+  const [mapCenter, setMapCenter] = useState<[number, number]>([11.0168, 76.9558])
   const [images, setImages] = useState<File[]>([])
   const [isLocating, setIsLocating] = useState(false)
 
@@ -58,7 +59,21 @@ export function ReportIncidentPage() {
     setMapCenter([lat, lng])
     setValue('location_lat', lat, { shouldValidate: true })
     setValue('location_lng', lng, { shouldValidate: true })
+    toast.success(`Location set to ${lat.toFixed(4)}, ${lng.toFixed(4)}`)
   }
+
+  // Pre-fill location from query params if passed
+  useEffect(() => {
+    const latStr = searchParams.get('lat')
+    const lngStr = searchParams.get('lng')
+    if (latStr && lngStr) {
+      const lat = parseFloat(latStr)
+      const lng = parseFloat(lngStr)
+      if (!isNaN(lat) && !isNaN(lng)) {
+        handleLocationSelect(lat, lng)
+      }
+    }
+  }, [searchParams])
 
   const locateMe = () => {
     setIsLocating(true)

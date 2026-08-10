@@ -162,13 +162,23 @@ class IncidentRepository:
         if category_id:
             query = query.where(Incident.category_id == category_id)
         if severity:
-            query = query.where(Incident.severity == severity)
+            sev_val = severity.upper() if isinstance(severity, str) else severity
+            query = query.where(Incident.severity == sev_val)
         if status:
-            query = query.where(Incident.status == status)
+            stat_val = status.upper() if isinstance(status, str) else status
+            query = query.where(Incident.status == stat_val)
         if date_from:
-            query = query.where(Incident.created_at >= date_from)
+            dt_from = datetime.fromisoformat(date_from.replace("Z", "+00:00")) if isinstance(date_from, str) else date_from
+            if dt_from.tzinfo is None:
+                dt_from = dt_from.replace(tzinfo=timezone.utc)
+            query = query.where(Incident.created_at >= dt_from)
         if date_to:
-            query = query.where(Incident.created_at <= date_to)
+            dt_to = datetime.fromisoformat(date_to.replace("Z", "+00:00")) if isinstance(date_to, str) else date_to
+            if isinstance(date_to, str) and len(date_to.strip()) <= 10:
+                dt_to = dt_to.replace(hour=23, minute=59, second=59, microsecond=999999)
+            if dt_to.tzinfo is None:
+                dt_to = dt_to.replace(tzinfo=timezone.utc)
+            query = query.where(Incident.created_at <= dt_to)
         if search:
             query = query.where(
                 or_(
