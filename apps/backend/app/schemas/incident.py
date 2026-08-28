@@ -142,6 +142,7 @@ class IncidentFilters(BaseModel):
     date_from: Optional[str] = None
     date_to: Optional[str] = None
     search: Optional[str] = None
+    sort_by: Optional[str] = "severity"
     lat: Optional[float] = None
     lng: Optional[float] = None
     radius_km: Optional[float] = None

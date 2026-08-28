@@ -64,6 +64,34 @@ export function useCurrentUser() {
   })
 }
 
+// ── Forgot Password Flow ──────────────────────────────────────────
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: async (data: { email: string }) => {
+      const res = await api.post('/auth/forgot-password', data)
+      return res.data
+    },
+  })
+}
+
+export function useVerifyResetOTP() {
+  return useMutation({
+    mutationFn: async (data: { email: string; otp: string }) => {
+      const res = await api.post('/auth/verify-reset-otp', data)
+      return res.data as { reset_token: string; message: string }
+    },
+  })
+}
+
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: async (data: { reset_token: string; new_password: string; confirm_password: string }) => {
+      const res = await api.post('/auth/reset-password', data)
+      return res.data as { message: string }
+    },
+  })
+}
+
 // ── Logout ─────────────────────────────────────────────────────
 export function useLogout() {
   const { logout } = useAuthStore()
@@ -77,3 +105,4 @@ export function useLogout() {
     toast.success('Logged out successfully')
   }
 }
+

@@ -67,9 +67,11 @@ class UserRepository:
         return user
 
     async def list_users(
-        self, page: int = 1, limit: int = 10, search: Optional[str] = None
+        self, page: int = 1, limit: int = 10, search: Optional[str] = None, role: Optional[str] = None
     ) -> Tuple[List[User], int]:
         query = select(User).options(selectinload(User.profile))
+        if role:
+            query = query.where(User.role == role)
         if search:
             query = query.where(
                 or_(
@@ -82,6 +84,7 @@ class UserRepository:
         query = query.offset((page - 1) * limit).limit(limit).order_by(User.created_at.desc())
         result = await self.db.execute(query)
         return result.scalars().all(), total
+
 
     async def count(self) -> int:
         result = await self.db.execute(select(func.count()).select_from(User))

@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 export function IncidentsPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [page, setPage] = useState(1)
-  const { category_id, severity, status, date_from, date_to, search, setFilter } = useFilterStore()
+  const { category_id, severity, status, date_from, date_to, search, sort_by } = useFilterStore()
 
   const { data, isLoading } = useIncidents({
     category_id: category_id ?? undefined,
@@ -21,6 +21,7 @@ export function IncidentsPage() {
     date_from: date_from ?? undefined,
     date_to: date_to ?? undefined,
     search: search || undefined,
+    sort_by: sort_by || undefined,
     page,
     limit: 12,
   })

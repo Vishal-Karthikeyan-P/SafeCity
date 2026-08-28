@@ -60,7 +60,7 @@ export function useNearbyIncidents(
 }
 
 // ── Heatmap ───────────────────────────────────────────────────
-export function useHeatmap(filters: { category_id?: string; severity?: string } = {}) {
+export function useHeatmap(filters: { category_id?: string; severity?: string; date_from?: string; date_to?: string } = {}) {
   return useQuery({
     queryKey: ['heatmap', filters],
     queryFn: async () => {

@@ -43,8 +43,28 @@ export const changePasswordSchema = z.object({
   path: ['confirm_password'],
 })
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().email('Enter a valid email address'),
+})
+
+export const otpSchema = z.object({
+  otp: z.string().length(6, 'OTP must be exactly 6 digits').regex(/^\d+$/, 'OTP must contain only numbers'),
+})
+
+export const resetPasswordSchema = z.object({
+  new_password: z.string().min(8, 'Password must be at least 8 characters'),
+  confirm_password: z.string(),
+}).refine((d) => d.new_password === d.confirm_password, {
+  message: 'Passwords do not match',
+  path: ['confirm_password'],
+})
+
 export type LoginValues = z.infer<typeof loginSchema>
 export type RegisterValues = z.infer<typeof registerSchema>
 export type ReportIncidentValues = z.infer<typeof reportIncidentSchema>
 export type UpdateProfileValues = z.infer<typeof updateProfileSchema>
 export type ChangePasswordValues = z.infer<typeof changePasswordSchema>
+export type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>
+export type OTPValues = z.infer<typeof otpSchema>
+export type ResetPasswordValues = z.infer<typeof resetPasswordSchema>
+

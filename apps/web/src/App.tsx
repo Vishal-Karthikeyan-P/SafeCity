@@ -9,6 +9,7 @@ import { AuthLayout } from '@/components/layout/AuthLayout'
 // Pages
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
+import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { MapPage } from '@/pages/MapPage'
 import { RoutePlanPage } from '@/pages/RoutePlanPage'
@@ -21,6 +22,7 @@ import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage'
 import { AdminIncidentsPage } from '@/pages/admin/AdminIncidentsPage'
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage'
 import { AdminCategoriesPage } from '@/pages/admin/AdminCategoriesPage'
+import { AdminLearningPage } from '@/pages/admin/AdminLearningPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { LearningHubPage } from '@/pages/LearningHubPage'
 import { AlertsPage } from '@/pages/AlertsPage'
@@ -63,7 +65,12 @@ export default function App() {
             path="/register"
             element={<GuestRoute><RegisterPage /></GuestRoute>}
           />
+          <Route
+            path="/forgot-password"
+            element={<GuestRoute><ForgotPasswordPage /></GuestRoute>}
+          />
         </Route>
+
 
         {/* Protected App routes */}
         <Route
@@ -71,6 +78,7 @@ export default function App() {
         >
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/map" element={<MapPage />} />
+          <Route path="/safety-map" element={<Navigate to="/map" replace />} />
           <Route path="/route-plan" element={<RoutePlanPage />} />
           <Route path="/incidents" element={<IncidentsPage />} />
           <Route path="/incidents/new" element={<ReportIncidentPage />} />
@@ -90,6 +98,7 @@ export default function App() {
           <Route path="/admin/incidents" element={<AdminIncidentsPage />} />
           <Route path="/admin/users" element={<AdminUsersPage />} />
           <Route path="/admin/categories" element={<AdminCategoriesPage />} />
+          <Route path="/admin/learning" element={<AdminLearningPage />} />
         </Route>
 
         {/* 404 */}

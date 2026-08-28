@@ -57,6 +57,7 @@ async def admin_list_incidents(
     severity: Optional[str] = None,
     status: Optional[str] = None,
     search: Optional[str] = None,
+    sort_by: Optional[str] = Query("severity"),
     admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -64,7 +65,7 @@ async def admin_list_incidents(
     service = IncidentService(db)
     filters = IncidentFilters(
         page=page, limit=limit, category_id=category_id,
-        severity=severity, status=status, search=search
+        severity=severity, status=status, search=search, sort_by=sort_by
     )
     return await service.list_incidents(filters)
 
@@ -99,14 +100,16 @@ async def admin_list_users(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     search: Optional[str] = None,
+    role: Optional[str] = None,
     admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Admin — list all users."""
+    """Admin — list all users with role and search filters."""
     repo = UserRepository(db)
-    users, total = await repo.list_users(page=page, limit=limit, search=search)
+    users, total = await repo.list_users(page=page, limit=limit, search=search, role=role)
     pages = math.ceil(total / limit) if total > 0 else 1
     return UserListResponse(items=users, total=total, page=page, limit=limit, pages=pages)
+
 
 
 @router.patch("/users/{user_id}/deactivate")
@@ -294,8 +297,11 @@ async def create_article(
     )
     db.add(article)
     await db.commit()
-    await db.refresh(article)
-    return article
+    
+    repo = LearningRepository(db)
+    # Eagerly load the category relation for serialization
+    refreshed_article = await repo.get_article_by_id(article.id)
+    return refreshed_article
 
 @router.patch("/articles/{article_id}", response_model=ArticleSchema)
 async def update_article(
@@ -313,8 +319,10 @@ async def update_article(
     for key, val in update_data.items():
         setattr(article, key, val)
     await db.commit()
-    await db.refresh(article)
-    return article
+    
+    # Eagerly load the category relation for serialization
+    refreshed_article = await repo.get_article_by_id(article_id)
+    return refreshed_article
 
 @router.delete("/articles/{article_id}", status_code=204)
 async def delete_article(

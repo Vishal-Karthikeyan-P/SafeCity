@@ -10,7 +10,10 @@ export function NotificationsPage() {
   const { mutate: markRead } = useMarkNotificationRead()
   const { mutate: markAllRead, isPending: isMarkingAll } = useMarkAllRead()
 
-  const notifications: any[] = data?.notifications ?? []
+  const rawNotifs: any[] = data?.items ?? data?.notifications ?? []
+  const notifications = Array.from(
+    new Map(rawNotifs.map((n: any) => [n.id || `${n.title}-${n.created_at}`, n])).values()
+  )
   const unread = data?.unread_count ?? 0
 
   return (

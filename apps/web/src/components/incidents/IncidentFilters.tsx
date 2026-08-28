@@ -28,7 +28,7 @@ interface IncidentFiltersProps {
 
 export function IncidentFilters({ showStatus = false }: IncidentFiltersProps) {
   const { data: categories = [] } = useCategories()
-  const { category_id, severity, status, date_from, date_to, setFilter, resetFilters } = useFilterStore()
+  const { category_id, severity, status, date_from, date_to, sort_by, setFilter, resetFilters } = useFilterStore()
 
   return (
     <div className="flex flex-wrap items-end gap-3 p-4 bg-card border rounded-2xl">
@@ -94,6 +94,23 @@ export function IncidentFilters({ showStatus = false }: IncidentFiltersProps) {
           </Select>
         </div>
       )}
+
+      {/* Sort By */}
+      <div className="min-w-[150px]">
+        <Select
+          value={sort_by ?? 'severity'}
+          onValueChange={(v) => setFilter('sort_by', v)}
+        >
+          <SelectTrigger id="filter-sort-by">
+            <SelectValue placeholder="Sort By" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="severity">Sort by Severity (Default)</SelectItem>
+            <SelectItem value="date_desc">Sort by Date (Newest)</SelectItem>
+            <SelectItem value="date_asc">Sort by Date (Oldest)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       {/* Date from */}
       <Input

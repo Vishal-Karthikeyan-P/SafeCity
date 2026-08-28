@@ -5,11 +5,11 @@ import math
 from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 
-from sqlalchemy import and_, func, or_, select, text
+from sqlalchemy import and_, case, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.incident import Incident, IncidentCategory, IncidentImage, IncidentStatus
+from app.models.incident import Incident, IncidentCategory, IncidentImage, IncidentStatus, SeverityLevel
 
 
 class IncidentRepository:
@@ -70,18 +70,8 @@ class IncidentRepository:
     async def seed_categories(self):
         """Seed default incident categories if none exist."""
         from app.models.incident import IncidentCategory
-        from shared.constants import INCIDENT_CATEGORIES  # fallback to hardcoded
-        defaults = [
-            {"name": "Crime", "slug": "crime", "icon": "🚨", "color": "#EF4444"},
-            {"name": "Harassment", "slug": "harassment", "icon": "⚠️", "color": "#F97316"},
-            {"name": "Poor Lighting", "slug": "poor_lighting", "icon": "💡", "color": "#EAB308"},
-            {"name": "Road Hazard", "slug": "road_hazard", "icon": "🚧", "color": "#F59E0B"},
-            {"name": "Accident", "slug": "accident", "icon": "🚗", "color": "#EC4899"},
-            {"name": "Public Infrastructure", "slug": "public_infrastructure", "icon": "🏗️", "color": "#8B5CF6"},
-            {"name": "Emergency", "slug": "emergency", "icon": "🆘", "color": "#DC2626"},
-            {"name": "Other", "slug": "other", "icon": "📋", "color": "#6B7280"},
-        ]
-        for d in defaults:
+        from app.db.seed_db import CATEGORIES_DATA
+        for d in CATEGORIES_DATA:
             existing = await self.get_category_by_slug(d["slug"])
             if not existing:
                 cat = IncidentCategory(**d)
@@ -157,6 +147,7 @@ class IncidentRepository:
         date_to: Optional[str] = None,
         search: Optional[str] = None,
         reporter_id: Optional[str] = None,
+        sort_by: Optional[str] = "severity",
     ) -> Tuple[List[Incident], int]:
         query = self._base_query()
         if category_id:
@@ -193,7 +184,36 @@ class IncidentRepository:
         count_q = select(func.count()).select_from(query.subquery())
         total = (await self.db.execute(count_q)).scalar_one()
 
-        query = query.order_by(Incident.created_at.desc()).offset((page - 1) * limit).limit(limit)
+        # Custom Sorting
+        sb = (sort_by or "severity").lower()
+        if sb == "status":
+            status_order = case(
+                (Incident.status == IncidentStatus.PENDING, 1),
+                (Incident.status == IncidentStatus.UNDER_REVIEW, 2),
+                (Incident.status == IncidentStatus.APPROVED, 3),
+                (Incident.status == IncidentStatus.RESOLVED, 4),
+                (Incident.status == IncidentStatus.REJECTED, 5),
+                else_=6
+            )
+            query = query.order_by(status_order, Incident.created_at.desc())
+        elif sb in ["date_desc", "date", "created_at"]:
+            query = query.order_by(Incident.created_at.desc())
+        elif sb == "date_asc":
+            query = query.order_by(Incident.created_at.asc())
+        elif sb == "category":
+            query = query.join(Incident.category).order_by(IncidentCategory.name.asc(), Incident.created_at.desc())
+        else:
+            # Default: Severity (CRITICAL -> HIGH -> MEDIUM -> LOW)
+            severity_order = case(
+                (Incident.severity == SeverityLevel.CRITICAL, 1),
+                (Incident.severity == SeverityLevel.HIGH, 2),
+                (Incident.severity == SeverityLevel.MEDIUM, 3),
+                (Incident.severity == SeverityLevel.LOW, 4),
+                else_=5
+            )
+            query = query.order_by(severity_order, Incident.created_at.desc())
+
+        query = query.offset((page - 1) * limit).limit(limit)
         result = await self.db.execute(query)
         return list(result.scalars().all()), total
 
@@ -205,6 +225,7 @@ class IncidentRepository:
         limit: int = 50,
         category_id: Optional[str] = None,
         severity: Optional[str] = None,
+        include_unapproved: bool = False,
     ) -> List[Incident]:
         """Use PostGIS ST_DWithin for spatial proximity search."""
         radius_m = radius_km * 1000
@@ -215,6 +236,8 @@ class IncidentRepository:
                 f"ST_GeogFromText('{point_wkt}'), {radius_m})"
             )
         )
+        if not include_unapproved:
+            query = query.where(Incident.status == IncidentStatus.APPROVED)
         if category_id:
             query = query.where(Incident.category_id == category_id)
         if severity:
@@ -249,7 +272,6 @@ class IncidentRepository:
         return {row[0]: row[1] for row in result.all()}
 
     async def count_last_n_days(self, days: int = 30) -> int:
-        from sqlalchemy import cast, Date
         cutoff = text(f"NOW() - INTERVAL '{days} days'")
         result = await self.db.execute(
             select(func.count(Incident.id)).where(
@@ -263,3 +285,43 @@ class IncidentRepository:
             select(func.count(Incident.id)).where(Incident.deleted_at.is_(None))
         )
         return result.scalar_one()
+
+    async def get_recent_incidents(self, limit: int = 5) -> List[Incident]:
+        query = self._base_query().order_by(Incident.created_at.desc()).limit(limit)
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+
+    async def get_daily_counts(self, days: int = 7) -> List[dict]:
+        from datetime import datetime, timedelta, timezone
+        from sqlalchemy import cast, Date
+        
+        now = datetime.now(timezone.utc)
+        start_date = (now - timedelta(days=days - 1)).date()
+        
+        result = await self.db.execute(
+            select(
+                cast(Incident.created_at, Date).label("date"),
+                func.count(Incident.id).label("count")
+            )
+            .where(
+                and_(
+                    Incident.created_at >= start_date,
+                    Incident.deleted_at.is_(None)
+                )
+            )
+            .group_by(cast(Incident.created_at, Date))
+            .order_by(cast(Incident.created_at, Date).asc())
+        )
+        
+        counts_map = {
+            row.date.strftime("%Y-%m-%d") if hasattr(row.date, 'strftime') else str(row.date): row.count
+            for row in result.all()
+        }
+        
+        trend = []
+        for i in range(days):
+            d = (start_date + timedelta(days=i)).strftime("%Y-%m-%d")
+            trend.append({"date": d, "count": counts_map.get(d, 0)})
+            
+        return trend
+

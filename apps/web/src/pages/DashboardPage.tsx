@@ -34,7 +34,10 @@ export function DashboardPage() {
   const { mutate: markAllRead } = useMarkAllRead()
 
   const incidents = myIncidentsData?.items ?? []
-  const notifications = notifData?.items ?? []
+  const rawNotifs = notifData?.items ?? notifData?.notifications ?? []
+  const notifications = Array.from(
+    new Map(rawNotifs.map((n: any) => [n.id || `${n.title}-${n.created_at}`, n])).values()
+  ).slice(0, 3)
   const unread = notifData?.unread_count ?? 0
 
   // Stats from my incidents
@@ -137,7 +140,7 @@ export function DashboardPage() {
             </Card>
           ) : (
             <div className="space-y-2">
-              {notifications.slice(0, 8).map((n: any) => (
+              {notifications.map((n: any) => (
                 <div
                   key={n.id}
                   className={`p-3 rounded-xl border text-sm transition-all ${

@@ -7,6 +7,7 @@ interface FilterState {
   date_from: string | null
   date_to: string | null
   search: string
+  sort_by: string
   // Actions
   setFilter: (key: keyof Omit<FilterState, 'setFilter' | 'resetFilters'>, value: string | null) => void
   resetFilters: () => void
@@ -19,6 +20,7 @@ export const useFilterStore = create<FilterState>((set) => ({
   date_from: null,
   date_to: null,
   search: '',
+  sort_by: 'severity',
 
   setFilter: (key, value) => set({ [key]: value }),
 
@@ -30,5 +32,6 @@ export const useFilterStore = create<FilterState>((set) => ({
       date_from: null,
       date_to: null,
       search: '',
+      sort_by: 'severity',
     }),
 }))

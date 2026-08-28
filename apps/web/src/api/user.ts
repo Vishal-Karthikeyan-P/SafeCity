@@ -45,11 +45,13 @@ export function useAdminStats() {
   })
 }
 
-export function useAdminUsers(page = 1, limit = 10, search = '') {
+export function useAdminUsers(page = 1, limit = 10, search = '', role = '') {
   return useQuery({
-    queryKey: ['admin-users', page, limit, search],
+    queryKey: ['admin-users', page, limit, search, role],
     queryFn: async () => {
-      const res = await api.get('/admin/users', { params: { page, limit, search: search || undefined } })
+      const res = await api.get('/admin/users', {
+        params: { page, limit, search: search || undefined, role: role || undefined },
+      })
       return res.data
     },
   })

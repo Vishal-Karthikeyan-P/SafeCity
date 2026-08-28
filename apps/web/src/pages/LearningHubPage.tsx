@@ -1,91 +1,292 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Search, BookOpen, AlertCircle } from 'lucide-react'
-import { useLearningArticles, useLearningCategories } from '@/api/learning'
+import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Search, BookOpen, AlertCircle, Phone, Scale, CheckCircle2, XCircle,
+  X, ChevronLeft, ChevronRight, Filter
+} from 'lucide-react'
+import { useLearningArticles, useLearningCategories, type Article, type LearningCategory } from '@/api/learning'
+import { cn } from '@/lib/utils'
+
+// ── Skeleton ─────────────────────────────────────────────────
+
+function SkeletonCard() {
+  return (
+    <div className="rounded-xl border bg-card p-5 space-y-3 animate-pulse">
+      <div className="h-4 w-24 bg-muted rounded-full" />
+      <div className="h-5 w-3/4 bg-muted rounded" />
+      <div className="h-4 w-full bg-muted rounded" />
+      <div className="h-4 w-2/3 bg-muted rounded" />
+    </div>
+  )
+}
+
+// ── Article Detail Modal ──────────────────────────────────────
+
+function ArticleModal({ article, onClose }: { article: Article; onClose: () => void }) {
+  const sections = [
+    { label: "What To Do (Do's)", icon: CheckCircle2, color: 'text-emerald-500', content: article.content_dos },
+    { label: "What Not To Do (Don'ts)", icon: XCircle, color: 'text-red-500', content: article.content_donts },
+    { label: 'Emergency Steps', icon: AlertCircle, color: 'text-orange-500', content: article.emergency_steps },
+    { label: 'Helpline Numbers', icon: Phone, color: 'text-blue-500', content: article.helpline_numbers },
+    { label: 'Legal Information', icon: Scale, color: 'text-purple-500', content: article.legal_info },
+  ].filter((s) => s.content)
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-medium px-2 py-0.5 bg-primary/10 text-primary rounded-full">
+              {article.category?.icon} {article.category?.name}
+            </span>
+          </div>
+          <DialogTitle className="text-xl leading-snug">{article.title}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-5 mt-2">
+          <div className="p-4 bg-muted/50 rounded-xl text-sm leading-relaxed text-foreground/80">
+            {article.overview}
+          </div>
+          {sections.map(({ label, icon: Icon, color, content }) => (
+            <div key={label} className="space-y-2">
+              <div className={cn('flex items-center gap-2 font-semibold text-sm', color)}>
+                <Icon className="w-4 h-4" />
+                {label}
+              </div>
+              <div className="pl-6 space-y-1">
+                {content!.split('\n').map((line, i) => (
+                  <p key={i} className="text-sm text-foreground/75 leading-relaxed">{line}</p>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Category Card ─────────────────────────────────────────────
+
+function CategoryCard({
+  category, isSelected, onClick,
+}: {
+  category: LearningCategory; isSelected: boolean; onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'group text-left w-full rounded-xl border p-4 transition-all duration-200',
+        'hover:shadow-md hover:border-primary/40',
+        isSelected ? 'border-primary bg-primary/5 shadow-md' : 'bg-card border-border',
+      )}
+    >
+      <div className="text-3xl">{category.icon}</div>
+      <p className={cn('font-semibold mt-2 text-sm', isSelected && 'text-primary')}>
+        {category.name}
+      </p>
+      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+        {category.description}
+      </p>
+    </button>
+  )
+}
+
+// ── Main Page ─────────────────────────────────────────────────
 
 export function LearningHubPage() {
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [categoryId, setCategoryId] = useState<string | undefined>()
-  
-  const { data: categories } = useLearningCategories()
-  const { data: articles, isLoading } = useLearningArticles(1, 10, categoryId, search)
+  const [page, setPage] = useState(1)
+  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null)
+  const [showCategories, setShowCategories] = useState(true)
+
+  const { data: categories, isLoading: catsLoading } = useLearningCategories()
+  const { data, isLoading } = useLearningArticles(page, 12, categoryId, debouncedSearch)
+
+  const handleSearch = useCallback((val: string) => {
+    setSearch(val)
+    clearTimeout((handleSearch as any)._t)
+    ;(handleSearch as any)._t = setTimeout(() => {
+      setDebouncedSearch(val)
+      setPage(1)
+    }, 350)
+  }, [])
+
+  const handleCategorySelect = (id: string | undefined) => {
+    setCategoryId(id)
+    setPage(1)
+  }
+
+  const clearFilters = () => {
+    setSearch('')
+    setDebouncedSearch('')
+    setCategoryId(undefined)
+    setPage(1)
+  }
+
+  const hasFilters = !!search || !!categoryId
+  const selectedCategory = categories?.find((c) => c.id === categoryId)
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Safety Learning Hub</h1>
-          <p className="text-gray-500 dark:text-gray-400">Guides, best practices, and emergency procedures.</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Guides, best practices, emergency procedures, and legal information.</p>
         </div>
+        <Button variant="outline" size="sm" onClick={() => setShowCategories((v) => !v)} className="shrink-0">
+          <Filter className="w-4 h-4 mr-2" />
+          {showCategories ? 'Hide' : 'Show'} Categories
+        </Button>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+      {/* Category cards */}
+      {showCategories && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Browse by Category</h2>
+            {categoryId && (
+              <button onClick={() => handleCategorySelect(undefined)} className="text-xs text-primary hover:underline flex items-center gap-1">
+                <X className="w-3 h-3" /> Clear
+              </button>
+            )}
+          </div>
+          {catsLoading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+              {[...Array(8)].map((_, i) => <div key={i} className="h-28 rounded-xl bg-muted animate-pulse" />)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+              {categories?.map((cat) => (
+                <CategoryCard
+                  key={cat.id}
+                  category={cat}
+                  isSelected={categoryId === cat.id}
+                  onClick={() => handleCategorySelect(categoryId === cat.id ? undefined : cat.id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Search bar */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
+            id="learning-search"
             placeholder="Search articles..."
             className="pl-9"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearch(e.target.value)}
           />
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          <Button 
-            variant={!categoryId ? 'default' : 'outline'}
-            onClick={() => setCategoryId(undefined)}
-          >
-            All
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="shrink-0">
+            <X className="w-4 h-4 mr-1" /> Clear filters
           </Button>
-          {categories?.map((c: any) => (
-            <Button 
-              key={c.id}
-              variant={categoryId === c.id ? 'default' : 'outline'}
-              onClick={() => setCategoryId(c.id)}
-            >
-              {c.icon} {c.name}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {isLoading ? (
-          <p>Loading articles...</p>
-        ) : articles?.items?.length === 0 ? (
-          <div className="col-span-full text-center py-12 text-gray-500 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800">
-            <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-20" />
-            <p>No articles found.</p>
-          </div>
-        ) : (
-          articles?.items?.map((article: any) => (
-            <Card key={article.id} className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div className="text-sm font-medium px-2 py-1 bg-primary/10 text-primary rounded-full mb-2 inline-block">
-                    {article.category?.name || 'Article'}
-                  </div>
-                </div>
-                <CardTitle className="text-xl">{article.title}</CardTitle>
-                <CardDescription className="line-clamp-2">{article.overview}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-4 text-sm text-gray-500 mt-2">
-                  <span className="flex items-center gap-1">
-                    <BookOpen className="w-4 h-4" /> Read more
-                  </span>
-                  {article.emergency_steps && (
-                    <span className="flex items-center gap-1 text-red-500">
-                      <AlertCircle className="w-4 h-4" /> Emergency steps
-                    </span>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))
+        )}
+        {selectedCategory && (
+          <Badge variant="secondary" className="shrink-0">
+            {selectedCategory.icon} {selectedCategory.name}
+          </Badge>
         )}
       </div>
+
+      {/* Articles grid */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+      ) : data?.items?.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center bg-card rounded-2xl border border-dashed">
+          <BookOpen className="w-14 h-14 text-muted-foreground/30 mb-4" />
+          <p className="text-lg font-semibold text-foreground/60">No articles found</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {hasFilters ? 'Try adjusting your search or clearing the category filter.' : 'No articles have been published yet.'}
+          </p>
+          {hasFilters && (
+            <Button variant="outline" className="mt-4" size="sm" onClick={clearFilters}>Clear all filters</Button>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {data?.items?.map((article) => (
+              <Card
+                key={article.id}
+                className="group hover:shadow-lg transition-all duration-200 cursor-pointer hover:border-primary/30 hover:-translate-y-0.5"
+                onClick={() => setSelectedArticle(article)}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-medium px-2 py-0.5 bg-primary/10 text-primary rounded-full">
+                      {article.category?.icon} {article.category?.name}
+                    </span>
+                  </div>
+                  <CardTitle className="text-base leading-snug group-hover:text-primary transition-colors line-clamp-2">
+                    {article.title}
+                  </CardTitle>
+                  <CardDescription className="line-clamp-3 text-xs leading-relaxed">
+                    {article.overview}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    {article.emergency_steps && (
+                      <span className="flex items-center gap-1 text-orange-500 font-medium">
+                        <AlertCircle className="w-3 h-3" /> Emergency steps
+                      </span>
+                    )}
+                    {article.helpline_numbers && (
+                      <span className="flex items-center gap-1 text-blue-500">
+                        <Phone className="w-3 h-3" /> Helplines
+                      </span>
+                    )}
+                    {article.legal_info && (
+                      <span className="flex items-center gap-1 text-purple-500">
+                        <Scale className="w-3 h-3" /> Legal info
+                      </span>
+                    )}
+                    <span className="ml-auto flex items-center gap-1 text-primary font-medium">
+                      <BookOpen className="w-3 h-3" /> Read more
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {data && data.pages > 1 && (
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
+                <ChevronLeft className="w-4 h-4 mr-1" /> Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {data.page} of {data.pages} &middot; {data.total} articles
+              </span>
+              <Button variant="outline" size="sm" disabled={page >= data.pages} onClick={() => setPage((p) => p + 1)}>
+                Next <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Article detail modal */}
+      {selectedArticle && (
+        <ArticleModal article={selectedArticle} onClose={() => setSelectedArticle(null)} />
+      )}
     </div>
   )
 }

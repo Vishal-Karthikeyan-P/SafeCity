@@ -59,11 +59,17 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "uploads"
     MAX_UPLOAD_SIZE_MB: int = 10
 
-    # ── Email (optional) ─────────────────────────────────────
+    # ── Email / SMTP ─────────────────────────────────────────
     SMTP_HOST: Optional[str] = None
     SMTP_PORT: int = 587
+    SMTP_USERNAME: Optional[str] = None       # Sender email address / SMTP login
+    SMTP_PASSWORD: Optional[str] = None       # SMTP password or app password
+    SMTP_FROM_EMAIL: Optional[str] = None     # Email displayed as From address
+    SMTP_FROM_NAME: str = "SafeCity"          # Display name in From header
+    OTP_EXPIRY_MINUTES: int = 10              # OTP validity period in minutes
+
+    # Legacy aliases (kept for backward compatibility)
     SMTP_USER: Optional[str] = None
-    SMTP_PASSWORD: Optional[str] = None
     EMAILS_FROM_EMAIL: str = "noreply@safecity.io"
 
     class Config:

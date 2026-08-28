@@ -74,6 +74,7 @@ class IncidentService:
             date_from=filters.date_from,
             date_to=filters.date_to,
             search=filters.search,
+            sort_by=filters.sort_by,
         )
         pages = math.ceil(total / filters.limit) if total > 0 else 1
         return IncidentListResponse(
@@ -99,9 +100,12 @@ class IncidentService:
 
     async def list_nearby(
         self, lat: float, lng: float, radius_km: float,
-        category_id: Optional[str], severity: Optional[str]
+        category_id: Optional[str], severity: Optional[str],
+        include_unapproved: bool = False
     ) -> List[IncidentSchema]:
-        incidents = await self.repo.list_nearby(lat, lng, radius_km, category_id=category_id, severity=severity)
+        incidents = await self.repo.list_nearby(
+            lat, lng, radius_km, category_id=category_id, severity=severity, include_unapproved=include_unapproved
+        )
         return [_serialize(i) for i in incidents]
 
     async def upload_images(
@@ -169,6 +173,22 @@ class IncidentService:
         by_severity = await self.repo.count_by_severity()
         last_30 = await self.repo.count_last_n_days(30)
         total = await self.repo.count_total()
+        recent = await self.repo.get_recent_incidents(limit=5)
+        daily_trend = await self.repo.get_daily_counts(days=7)
+
+        recent_serialized = [
+            {
+                "id": inc.id,
+                "title": inc.title,
+                "status": inc.status,
+                "severity": inc.severity,
+                "category_name": inc.category.name if inc.category else "Uncategorized",
+                "category_icon": inc.category.icon if inc.category else "📋",
+                "created_at": inc.created_at.isoformat() if inc.created_at else None,
+            }
+            for inc in recent
+        ]
+
         return {
             "total_incidents": total,
             "pending": by_status.get("pending", 0),
@@ -179,4 +199,7 @@ class IncidentService:
             "by_category": by_category,
             "by_severity": {k: v for k, v in by_severity.items()},
             "last_30_days": last_30,
+            "recent_incidents": recent_serialized,
+            "daily_trend": daily_trend,
         }
+

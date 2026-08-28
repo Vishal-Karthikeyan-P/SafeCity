@@ -97,6 +97,7 @@ export interface IncidentFilters {
   date_from?: string
   date_to?: string
   search?: string
+  sort_by?: string
   lat?: number
   lng?: number
   radius_km?: number
@@ -143,4 +144,48 @@ export interface RoutePlanResponse {
   routes: RouteData[]
   shortest_route_idx: number
   safest_route_idx: number
+}
+
+export interface HeatmapFilters {
+  category_id?: string
+  severity?: string
+  date_from?: string
+  date_to?: string
+}
+
+export interface AreaSafetyTopCategory {
+  name: string
+  icon: string
+  count: number
+}
+
+export interface AreaSafetyScore {
+  score: number
+  risk_level: 'safe' | 'moderate' | 'unsafe'
+  incident_count: number
+  density_per_km2: number
+  top_categories: AreaSafetyTopCategory[]
+  recent_7d: number
+  recent_30d: number
+}
+
+export interface CityRecentIncident {
+  id: string
+  title: string
+  severity: SeverityLevel
+  category_name: string
+  category_icon: string
+  created_at: string
+  lat: number
+  lng: number
+}
+
+export interface CitySafetyOverview {
+  score: number
+  risk_level: 'safe' | 'moderate' | 'unsafe'
+  total_incident_count: number
+  top_category: AreaSafetyTopCategory | null
+  all_categories: AreaSafetyTopCategory[]
+  recent_incidents: CityRecentIncident[]
+  recent_7d_count: number
 }

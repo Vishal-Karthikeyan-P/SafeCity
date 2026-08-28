@@ -40,3 +40,6 @@ class AdminStatsResponse(BaseModel):
     total_users: int
     active_users: int
     new_users_this_month: int
+    recent_incidents: List[dict] = []
+    daily_trend: List[dict] = []
+

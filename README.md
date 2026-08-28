@@ -17,6 +17,7 @@ SafeCity is a **complete, production-ready smart city safety platform** that emp
 | 🆘 **SOS & Emergency** | SOS trigger with GPS coordinates, emergency contact management (up to 5 contacts) |
 | 📊 **Admin Dashboard** | Full analytics (Recharts), moderation tools, user management, content management (Articles & Alerts) |
 | 🔔 **Notifications** | In-app notifications for incident status updates, real-time badge counts |
+| 📱 **Mobile App** | React Native (Expo) Android app with auth, map, incident reporting, and notifications |
 
 ---
 
@@ -28,7 +29,8 @@ This is a **monorepo** setup:
 Safe City/
 ├── apps/
 │   ├── backend/          # FastAPI + SQLAlchemy + PostGIS (Python)
-│   └── web/              # React + Vite + TypeScript (Frontend)
+│   ├── web/              # React + Vite + TypeScript (Frontend)
+│   └── mobile/           # React Native + Expo (Android)
 ├── shared/               # Shared TypeScript types
 └── docker-compose.yml
 ```
@@ -49,6 +51,15 @@ Safe City/
 - **Recharts** — analytics charts
 - **Zustand** — client state management
 - **Zod + React Hook Form** — form validation
+
+### Mobile Stack
+- **React Native + Expo SDK 50** — cross-platform mobile framework
+- **React Navigation** — stack + bottom tab navigation
+- **TanStack React Query** — server state management
+- **Axios** — HTTP client with JWT interceptor
+- **Zustand** — auth + global state
+- **Expo Location** — GPS and geolocation
+- **Expo Secure Store** — encrypted token storage
 
 ---
 
@@ -106,6 +117,19 @@ python seed_data.py   # Seed articles, alerts
 python -m app.db.init_db  # Seed users, incidents
 
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+### 4. Updating & Seeding Categories
+
+To initialize or update the database with the expanded incident categories, users, sample incidents, and notifications:
+
+```bash
+cd apps/backend
+python -m app.db.init_db
+```
+
+Or seed extra learning articles and community alerts:
+
+```bash
+python seed_data.py
 ```
 
 ### 4. Frontend Setup
@@ -117,12 +141,179 @@ npm run dev
 
 ---
 
+## 📱 Mobile App (React Native / Expo)
+
+The SafeCity Android app is built with **React Native + Expo SDK 50**. It connects to the same FastAPI backend.
+
+### Prerequisites
+
+| Tool | Version | Download |
+|---|---|---|
+| Node.js | 18.x or 20.x (recommended) | [nodejs.org](https://nodejs.org) |
+| Expo Go (physical device) | Latest | [Play Store](https://play.google.com/store/apps/details?id=host.exp.exponent) |
+| Android Studio (emulator) | Latest | [developer.android.com](https://developer.android.com/studio) |
+| JDK | 17+ | Required by Android SDK |
+
+> ⚠️ **Node 22+ / Node 24 Users (Windows)**: A patch is already applied to `@expo/cli` to fix a Windows path error with `node:sea` module. If you reinstall node_modules, re-apply the fix described in the Troubleshooting section below.
+
+---
+
+### Step 1 — Start the Backend
+
+The mobile app requires the FastAPI backend to be running and accessible on your network.
+
+```bash
+# From project root
+cd apps/backend
+
+# Activate virtual environment
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # Linux/Mac
+
+# Start the backend (bind to all interfaces so mobile can reach it)
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Verify it works:
+```
+http://localhost:8000/docs        ✅ Swagger UI
+http://localhost:8000/api/v1/incidents  ✅ Incident list
+```
+
+---
+
+### Step 2 — Configure API URL
+
+Edit `apps/mobile/src/config/env.ts` and set the correct `API_BASE_URL`:
+
+| Scenario | URL to use |
+|---|---|
+| Android Emulator (AVD) | `http://10.0.2.2:8000/api/v1` ← default |
+| Physical Android via USB/LAN | `http://<YOUR_PC_LAN_IP>:8000/api/v1` |
+| Docker deployment | `http://<docker-host-ip>:8000/api/v1` |
+
+**How to find your LAN IP (Windows):**
+```cmd
+ipconfig
+# Look for "IPv4 Address" under your active adapter, e.g. 192.168.1.105
+```
+
+Then update `env.ts`:
+```typescript
+export const API_BASE_URL = 'http://192.168.1.105:8000/api/v1';  // physical device
+// export const API_BASE_URL = 'http://10.0.2.2:8000/api/v1';    // emulator
+```
+
+---
+
+### Step 3 — Install Mobile Dependencies
+
+```bash
+cd apps/mobile
+npm install
+```
+
+---
+
+### Step 4 — Run the Mobile App
+
+#### Option A — Android Emulator (Android Studio AVD)
+
+1. Open **Android Studio** → **Virtual Device Manager** → Start an AVD (API 33+ recommended)
+2. In a new terminal:
+   ```bash
+   cd apps/mobile
+   npx expo start
+   ```
+3. When the Metro bundler opens, press **`a`** to open on the Android emulator.
+
+#### Option B — Physical Android Device (Expo Go)
+
+1. Install **Expo Go** from the [Play Store](https://play.google.com/store/apps/details?id=host.exp.exponent) on your Android phone.
+2. Make sure your phone and PC are on the **same Wi-Fi network**.
+3. Update `API_BASE_URL` in `env.ts` to your PC's LAN IP (see Step 2).
+4. Run:
+   ```bash
+   cd apps/mobile
+   npx expo start
+   ```
+5. Open the **Expo Go** app on your phone → **Scan QR code** shown in the terminal.
+
+#### Option C — From the Project Root
+
+```bash
+# From Safe City/ root
+npm run dev:mobile
+```
+
+---
+
+### Step 5 — Log In
+
+Use the seeded demo credentials:
+
+| Role | Email | Password |
+|---|---|---|
+| **Admin** | `admin@safecity.com` | `AdminPass123!` |
+| **Demo Citizen** | `aarav.sharma1@safecity.demo` | `CitizenPass123!` |
+
+---
+
+### Mobile App Screens
+
+| Screen | Description |
+|---|---|
+| **Login / Register** | JWT auth with secure token storage |
+| **Home** | Area safety score, nearby incident count, quick actions |
+| **Map** | Nearby incidents list with severity filters |
+| **Report Incident** | Create incident with category, severity, description |
+| **Notifications** | In-app alerts with unread badge count |
+| **Profile** | View/edit profile, logout |
+
+---
+
+### Troubleshooting (Mobile)
+
+#### ❌ `ENOENT ... node:sea` on Windows with Node 22+/24
+This is a known Expo SDK 50 bug on Windows. The fix is already applied in `node_modules/@expo/cli/build/src/start/server/metro/externals.js`.
+
+If you delete `node_modules` and reinstall, re-apply the fix manually:
+
+Find this block in `externals.js` (~line 19):
+```javascript
+.filter((x) => !/^_|^(internal|v8|node-inspect)\/|\//.test(x) && ![
+```
+
+Change it to:
+```javascript
+.filter((x) => !/^_|^(internal|v8|node-inspect)\/|\//.test(x) && !x.includes(':') && ![
+```
+
+#### ❌ `Network request failed` / Cannot connect to backend
+- Make sure the backend is running on port 8000.
+- For physical devices: use your LAN IP, not `localhost`.
+- For emulators: use `10.0.2.2` (Android loopback to host machine).
+- Check Windows Firewall allows inbound traffic on port 8000.
+
+#### ❌ Metro bundler port conflict
+```bash
+npx expo start --port 8082
+```
+
+#### ❌ `@types/react` version warning
+```bash
+cd apps/mobile
+npm install @types/react@~18.2.45 --save-dev
+```
+
+---
+
 ## 🔑 Default Credentials
 
 | Account | Email | Password |
 |---|---|---|
 | **Admin** | `admin@safecity.com` | `AdminPass123!` |
-| **Demo User** | `aarav.sharma1@safecity.demo` | `UserPass123!` |
+| **Demo Citizen** | `aarav.sharma1@safecity.demo` | `CitizenPass123!` |
 
 ---
 
@@ -132,21 +323,114 @@ npm run dev
 |---|---|---|
 | Auth | `POST /api/v1/auth/login` | Login |
 | Auth | `POST /api/v1/auth/register` | Register |
+| Auth | `POST /api/v1/auth/forgot-password` | Request password reset OTP (Step 1) |
+| Auth | `POST /api/v1/auth/verify-reset-otp` | Verify 6-digit OTP (Step 2) |
+| Auth | `POST /api/v1/auth/reset-password` | Reset password using token (Step 3) |
+| Users | `GET /api/v1/users/me` | My profile |
+| Users | `PUT /api/v1/users/me` | Update profile |
+| Users | `GET /api/v1/users/me/contacts` | Emergency contacts |
 | Incidents | `GET /api/v1/incidents` | List incidents |
 | Incidents | `POST /api/v1/incidents` | Create report |
 | Incidents | `GET /api/v1/incidents/nearby` | Spatial query |
 | Incidents | `GET /api/v1/incidents/heatmap` | Heatmap data |
+| Safety | `GET /api/v1/safety/area` | Area safety score |
 | Learning | `GET /api/v1/learning/articles` | List articles |
 | Learning | `GET /api/v1/learning/categories` | List categories |
 | Alerts | `GET /api/v1/alerts` | Active alerts |
+| Notifications | `GET /api/v1/notifications` | User notifications |
 | Routes | `GET /api/v1/routes/plan` | Safe route |
 | SOS | `POST /api/v1/sos` | Trigger SOS |
-| Users | `GET /api/v1/users/me` | My profile |
-| Users | `GET /api/v1/users/me/contacts` | Emergency contacts |
 | Search | `GET /api/v1/search` | Global search |
 | Admin | `GET /api/v1/admin/stats` | Platform stats |
+| Admin | `GET /api/v1/admin/incidents` | List & filter all incidents |
+| Admin | `PATCH /api/v1/admin/incidents/{id}/status` | Approve / Reject incident |
+| Admin | `DELETE /api/v1/admin/incidents/{id}` | Delete incident |
+| Admin | `GET /api/v1/admin/users` | List & filter users |
+| Admin | `PATCH /api/v1/admin/users/{id}/activate` | Activate user |
+| Admin | `PATCH /api/v1/admin/users/{id}/deactivate` | Deactivate user |
+| Admin | `PATCH /api/v1/admin/users/{id}/role` | Promote/demote user |
 
 Full interactive docs available at `/docs` (Swagger UI).
+
+---
+
+## 📧 Email & SMTP Setup (Forgot Password OTP)
+
+SafeCity includes a secure email-based One-Time Password (OTP) flow for password recovery. To send actual email OTPs, configure your SMTP server credentials in `apps/backend/.env`.
+
+### Environment Variables
+
+Add the following configuration to `apps/backend/.env`:
+
+```env
+# SMTP Server Configuration
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+
+# SMTP Credentials
+SMTP_USERNAME=your-email@gmail.com
+SMTP_PASSWORD=your-app-password-here
+
+# Sender Details
+SMTP_FROM_EMAIL=your-email@gmail.com
+SMTP_FROM_NAME=SafeCity
+
+# OTP Expiry
+OTP_EXPIRY_MINUTES=10
+```
+
+### Parameter Explanations
+
+| Variable | Description |
+|---|---|
+| `SMTP_HOST` | Hostname of your SMTP provider (e.g. `smtp.gmail.com`, `smtp.mailgun.org`, `smtp.sendgrid.net`) |
+| `SMTP_PORT` | SMTP port number (typically `587` for STARTTLS or `465` for SSL) |
+| `SMTP_USERNAME` | Sender email address / login username for the SMTP account from which the OTP email is sent |
+| `SMTP_PASSWORD` | SMTP password or provider-specific app password |
+| `SMTP_FROM_EMAIL` | Email address displayed in the "From" header to recipients |
+| `SMTP_FROM_NAME` | Display name shown as the sender (e.g. `SafeCity`) |
+| `OTP_EXPIRY_MINUTES` | Number of minutes before a generated OTP code expires (default: `10`) |
+
+> ⚠️ **Gmail Users Note**: If using Gmail (`smtp.gmail.com`), you **must** generate an **App Password** instead of using your normal account password:
+> 1. Go to your Google Account Settings → **Security**
+> 2. Enable **2-Step Verification**
+> 3. Search for **App Passwords**
+> 4. Create a new App Password for "Mail" and use that 16-character code as `SMTP_PASSWORD`.
+
+### Security Practices
+- 🔒 **No Hardcoded Credentials**: Credentials are read strictly from environment variables.
+- 🔒 **No Plaintext OTP Storage**: OTPs are hashed using `bcrypt` before database storage.
+- 🔒 **No Secret Leakage**: Credentials and raw OTP values are never printed in logs or returned in API responses.
+- 🔒 **Generic Responses**: `POST /auth/forgot-password` returns a generic response regardless of whether the email is registered to prevent email enumeration.
+
+---
+
+## 🔑 Forgot Password OTP Flow
+
+```
+[ User selects "Forgot Password?" ]
+               │
+               ▼
+[ STEP 1: Enter Email ] ──► POST /api/v1/auth/forgot-password
+               │            - Generates 6-digit numeric OTP
+               │            - Hashes OTP with bcrypt & saves to DB
+               │            - Sends email via configured SMTP
+               │            - Returns generic "OTP sent if email registered"
+               ▼
+[ STEP 2: Enter 6-Digit OTP ] ──► POST /api/v1/auth/verify-reset-otp
+               │                  - Validates 6-digit code & expiry (5-10 min)
+               │                  - Enforces max 5 verification attempts
+               │                  - Marks OTP as consumed (one-time use)
+               │                  - Returns short-lived signed JWT reset token
+               ▼
+[ STEP 3: Enter New Password ] ──► POST /api/v1/auth/reset-password
+               │                   - Validates new password & confirmation
+               │                   - Hashes password using bcrypt
+               │                   - Updates user password
+               │                   - Invalidates OTP & reset session
+               ▼
+[ STEP 4: Password Reset Complete ➔ Return to Login ]
+```
 
 ---
 
@@ -158,6 +442,7 @@ users ──< user_profiles
       ──< notifications
       ──< emergency_contacts
       ──< sos_requests
+      ──< password_reset_otps
 
 incident_categories ──< incidents
 article_categories  ──< articles
@@ -165,3 +450,4 @@ community_alerts
 ```
 
 All geographic data uses **PostGIS Geography** type (SRID 4326) for accurate spatial queries.
+

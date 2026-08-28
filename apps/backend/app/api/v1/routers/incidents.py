@@ -58,6 +58,7 @@ async def list_incidents(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     search: Optional[str] = None,
+    sort_by: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     """List all approved incidents with optional filters."""
@@ -65,6 +66,7 @@ async def list_incidents(
     filters = IncidentFilters(
         page=page, limit=limit, category_id=category_id, severity=severity,
         status=status, date_from=date_from, date_to=date_to, search=search,
+        sort_by=sort_by
     )
     return await service.list_incidents(filters)
 

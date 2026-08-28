@@ -50,9 +50,14 @@ export function LoginPage() {
 
         {/* Password */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5" htmlFor="login-password">
-            Password
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="login-password">
+              Password
+            </label>
+            <Link to="/forgot-password" className="text-xs text-primary font-medium hover:underline">
+              Forgot Password?
+            </Link>
+          </div>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -65,6 +70,7 @@ export function LoginPage() {
             />
           </div>
         </div>
+
 
         <Button
           id="login-submit"

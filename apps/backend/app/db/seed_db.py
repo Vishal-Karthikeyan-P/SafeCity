@@ -33,13 +33,102 @@ CITY_BASE_LAT = 11.0168
 CITY_BASE_LNG = 76.9558
 
 CATEGORIES_DATA = [
-    {"name": "Crime", "slug": "crime", "icon": "🚨", "color": "#EF4444", "description": "Theft, assault, robbery, or vandalism."},
-    {"name": "Harassment", "slug": "harassment", "icon": "⚠️", "color": "#F97316", "description": "Verbal or physical harassment, stalking, catcalling."},
-    {"name": "Poor Lighting", "slug": "poor_lighting", "icon": "💡", "color": "#EAB308", "description": "Broken streetlights, unlit walkways, dark alleys."},
-    {"name": "Road Hazard", "slug": "road_hazard", "icon": "🚧", "color": "#F59E0B", "description": "Potholes, missing manhole covers, blocked roads."},
-    {"name": "Accident", "slug": "accident", "icon": "🚗", "color": "#EC4899", "description": "Traffic collisions, vehicle crashes, hit-and-run."},
-    {"name": "Public Infrastructure", "slug": "public_infrastructure", "icon": "🏗️", "color": "#8B5CF6", "description": "Damaged bus stops, broken railings, water pipe leaks."},
-    {"name": "Emergency", "slug": "emergency", "icon": "🆘", "color": "#DC2626", "description": "Fire hazards, medical emergencies, severe distress."},
+    {"name": "Crime", "slug": "crime", "icon": "🚨", "color": "#EF4444", "description": "General crime, property damage, or vandalism."},
+    {"name": "Theft & Robbery", "slug": "theft_robbery", "icon": "👜", "color": "#DC2626", "description": "Theft, pickpocketing, snatching, or robbery."},
+    {"name": "Violence & Assault", "slug": "assault_violence", "icon": "👊", "color": "#B91C1C", "description": "Physical assault, fights, or violent threats."},
+    {"name": "Harassment & Stalking", "slug": "harassment", "icon": "⚠️", "color": "#F97316", "description": "Verbal or physical harassment, stalking, catcalling."},
+    {"name": "Suspicious Activity", "slug": "suspicious_activity", "icon": "👁️", "color": "#EA580C", "description": "Suspicious behavior, unauthorized loitering, or prowling."},
+    {"name": "Lost & Found", "slug": "lost_and_found", "icon": "🔍", "color": "#3B82F6", "description": "Lost property, found items, mislaid belongings."},
+    {"name": "Missing Person", "slug": "missing_person", "icon": "👤", "color": "#EF4444", "description": "Missing individuals, runaway reports, urgent search."},
+    {"name": "Missing Device / Phone", "slug": "missing_device", "icon": "📱", "color": "#6366F1", "description": "Lost or stolen smartphones, laptops, electronics."},
+    {"name": "Property Damage", "slug": "property_damage", "icon": "🏚️", "color": "#D97706", "description": "Damaged private or public property, structural harm."},
+    {"name": "Vandalism", "slug": "vandalism", "icon": "🎨", "color": "#B91C1C", "description": "Graffiti, deliberate property defacement, breakage."},
+    {"name": "Traffic Accident", "slug": "accident", "icon": "🚗", "color": "#EC4899", "description": "Vehicle collisions, crashes, or hit-and-run."},
+    {"name": "Illegal Parking", "slug": "illegal_parking", "icon": "🚫", "color": "#DB2777", "description": "Unauthorized parking, double parking, blocked driveways."},
+    {"name": "Abandoned Vehicle", "slug": "abandoned_vehicle", "icon": "🚗", "color": "#6B7280", "description": "Derelict or abandoned vehicles left in public space."},
+    {"name": "Vehicle Breakdown", "slug": "vehicle_breakdown", "icon": "🛠️", "color": "#F59E0B", "description": "Stalled vehicles, mechanical breakdown obstructing lane."},
+    {"name": "Public Transport Issue", "slug": "public_transport_issue", "icon": "🚌", "color": "#8B5CF6", "description": "Bus, metro, or transit delays, safety issues."},
+    {"name": "Road Signage Issue", "slug": "road_signage_issue", "icon": "🪧", "color": "#D97706", "description": "Damaged, missing, or obscured traffic road signs."},
+    {"name": "Traffic Signal Malfunction", "slug": "traffic_signal_malfunction", "icon": "🚦", "color": "#EF4444", "description": "Broken, non-functional, or unaligned traffic lights."},
+    {"name": "Pedestrian Safety", "slug": "pedestrian_safety", "icon": "🚸", "color": "#10B981", "description": "Unsafe crosswalks, speeding near pedestrian zones."},
+    {"name": "Blocked Footpath / Sidewalk", "slug": "blocked_footpath", "icon": "🚶", "color": "#F59E0B", "description": "Obstructed walkways, sidewalk encroachments."},
+    {"name": "Traffic Violation", "slug": "traffic_violation", "icon": "🚫", "color": "#DB2777", "description": "Reckless driving, red light jumping, dangerous maneuvers."},
+    {"name": "Parking Obstruction", "slug": "parking_obstruction", "icon": "🚗", "color": "#DB2777", "description": "Vehicles blocking gates, hydrants, or emergency exits."},
+    {"name": "Road Hazard", "slug": "road_hazard", "icon": "🚧", "color": "#F59E0B", "description": "Potholes, open manholes, or obstructed roads."},
+    {"name": "Streetlight / Lighting Malfunction", "slug": "poor_lighting", "icon": "💡", "color": "#EAB308", "description": "Broken streetlights, unlit walkways, dark alleys."},
+    {"name": "Drainage & Flooding", "slug": "drainage_flooding", "icon": "🌊", "color": "#0284C7", "description": "Clogged drains, standing water, monsoon flooding."},
+    {"name": "Water Leakage", "slug": "water_leakage", "icon": "💧", "color": "#06B6D4", "description": "Pipe bursts, municipal water leaks on streets."},
+    {"name": "Water Supply Issue", "slug": "water_supply_issue", "icon": "🚰", "color": "#0284C7", "description": "Disrupted municipal water supply or low pressure."},
+    {"name": "Sewage Issue", "slug": "sewage_issue", "icon": "🚽", "color": "#059669", "description": "Overflowing sewer lines, foul drainage leakage."},
+    {"name": "Gas Leak", "slug": "gas_leak", "icon": "⚠️", "color": "#EA580C", "description": "Gas odor, pipeline leaks, hazardous gas alerts."},
+    {"name": "Electrical Outage", "slug": "electrical_outage", "icon": "⚡", "color": "#EAB308", "description": "Power outages, transformer failures, blackouts."},
+    {"name": "Utility Service Issue", "slug": "utility_service_issue", "icon": "🔧", "color": "#64748B", "description": "General utility service interruptions or defects."},
+    {"name": "Missing or Damaged Public Sign", "slug": "missing_damaged_public_sign", "icon": "🪧", "color": "#D97706", "description": "Broken direction boards, missing safety signs."},
+    {"name": "Public Infrastructure", "slug": "public_infrastructure", "icon": "🏗️", "color": "#8B5CF6", "description": "Damaged bus stops, broken railings, public assets."},
+    {"name": "Building Safety", "slug": "building_safety", "icon": "🏢", "color": "#8B5CF6", "description": "Unsafe structures, code violations, hazardous facades."},
+    {"name": "Structural Damage", "slug": "structural_damage", "icon": "🏚️", "color": "#D97706", "description": "Cracked walls, collapsing roofs, foundation damage."},
+    {"name": "Construction Hazard", "slug": "construction_hazard", "icon": "🏗️", "color": "#F59E0B", "description": "Uncovered debris, falling hazards near sites."},
+    {"name": "Unsafe Construction Site", "slug": "unsafe_construction_site", "icon": "⚠️", "color": "#EF4444", "description": "Unbarricaded deep pits, missing safety nets."},
+    {"name": "Elevator / Escalator Failure", "slug": "elevator_failure", "icon": "🛗", "color": "#64748B", "description": "Stuck elevators, broken escalators in public spaces."},
+    {"name": "Broken Street Furniture", "slug": "broken_street_furniture", "icon": "🪑", "color": "#64748B", "description": "Damaged public benches, bollards, dustbins."},
+    {"name": "Damaged Public Property", "slug": "damaged_public_property", "icon": "🏛️", "color": "#8B5CF6", "description": "Vandalized government buildings, public monuments."},
+    {"name": "Park & Recreation Issue", "slug": "park_recreation_issue", "icon": "🏞️", "color": "#10B981", "description": "Unmaintained public parks, overgrown grass, litter."},
+    {"name": "Playground Safety", "slug": "playground_safety", "icon": "🛝", "color": "#10B981", "description": "Broken slides, hazardous playground equipment."},
+    {"name": "Public Toilet Issue", "slug": "public_toilet_issue", "icon": "🚻", "color": "#059669", "description": "Dirty, broken, or locked public restrooms."},
+    {"name": "Government Facility Issue", "slug": "government_facility_issue", "icon": "🏛️", "color": "#8B5CF6", "description": "Issues at municipal offices, civic centers."},
+    {"name": "Food Safety Concern", "slug": "food_safety_concern", "icon": "🍲", "color": "#F97316", "description": "Unsanitary food vendors, adulteration, food poisoning."},
+    {"name": "Water Quality Concern", "slug": "water_quality_concern", "icon": "🧪", "color": "#06B6D4", "description": "Contaminated drinking water, unusual color/taste."},
+    {"name": "Public Health Concern", "slug": "public_health_concern", "icon": "🩺", "color": "#0284C7", "description": "Disease outbreaks, sanitary health hazards."},
+    {"name": "Mental Health / Welfare Concern", "slug": "mental_health_welfare_concern", "icon": "🧠", "color": "#8B5CF6", "description": "Individuals requiring welfare assistance or support."},
+    {"name": "Environmental Pollution", "slug": "environmental_pollution", "icon": "🏭", "color": "#059669", "description": "Industrial smoke, toxic effluent, environmental harm."},
+    {"name": "Air Pollution", "slug": "air_pollution", "icon": "🌫️", "color": "#64748B", "description": "Heavy smog, dust from construction, poor air quality."},
+    {"name": "Water Pollution", "slug": "water_pollution", "icon": "🧪", "color": "#0284C7", "description": "Polluted lakes, river dumping, chemical contamination."},
+    {"name": "Chemical Spill", "slug": "chemical_spill", "icon": "☣️", "color": "#DC2626", "description": "Hazardous chemical leakage, industrial spills."},
+    {"name": "Hazardous Material", "slug": "hazardous_material", "icon": "⚠️", "color": "#EA580C", "description": "Unattended toxic containers, radioactive/bio hazards."},
+    {"name": "Illegal Dumping", "slug": "illegal_dumping", "icon": "🗑️", "color": "#059669", "description": "Debris and garbage dumped illegally in open lots."},
+    {"name": "Odor / Foul Smell", "slug": "odor_foul_smell", "icon": "🦨", "color": "#059669", "description": "Pungent chemical or sewage odor in neighborhood."},
+    {"name": "Smoke / Air Quality", "slug": "smoke_air_quality", "icon": "💨", "color": "#64748B", "description": "Open garbage burning, thick smoke plumes."},
+    {"name": "Public Cleanliness Issue", "slug": "public_cleanliness_issue", "icon": "🧹", "color": "#059669", "description": "Uncleaned streets, overflowing public trash bins."},
+    {"name": "Animal Bite", "slug": "animal_bite", "icon": "🐕", "color": "#EF4444", "description": "Stray dog/animal bites reported in area."},
+    {"name": "Animal Welfare Concern", "slug": "animal_welfare_concern", "icon": "🐾", "color": "#10B981", "description": "Injured strays, animal cruelty, rescue assistance."},
+    {"name": "Animal Noise", "slug": "animal_noise", "icon": "🐕", "color": "#6366F1", "description": "Excessive barking or animal disturbance at night."},
+    {"name": "Insect / Mosquito Infestation", "slug": "insect_infestation", "icon": "🦟", "color": "#84CC16", "description": "Severe mosquito breeding, pest infestation in area."},
+    {"name": "Stray Animals & Pest Hazard", "slug": "animal_hazard", "icon": "🐕", "color": "#10B981", "description": "Aggressive stray cattle, packs of dogs."},
+    {"name": "Tree / Vegetation Hazard", "slug": "tree_vegetation_hazard", "icon": "🌳", "color": "#10B981", "description": "Overgrown trees obstructing power lines or sight."},
+    {"name": "Fallen Tree / Branch", "slug": "fallen_tree_branch", "icon": "🪵", "color": "#D97706", "description": "Uprooted trees or heavy fallen branches on road."},
+    {"name": "Wildlife Incident", "slug": "wildlife_incident", "icon": "🐍", "color": "#10B981", "description": "Snakes, wild monkeys, or wild animal sightings."},
+    {"name": "Public Disturbance & Noise", "slug": "public_disturbance", "icon": "🔊", "color": "#6366F1", "description": "Loud unauthorized noise, brawls, public disorder."},
+    {"name": "Noise Equipment / Public Address Issue", "slug": "noise_equipment_issue", "icon": "📢", "color": "#6366F1", "description": "Loudspeakers operating past permissible hours."},
+    {"name": "Public Event Issue", "slug": "public_event_issue", "icon": "🎪", "color": "#8B5CF6", "description": "Unpermitted rallies, festival crowd overflow."},
+    {"name": "Crowd Management", "slug": "crowd_management", "icon": "👥", "color": "#EF4444", "description": "Dangerous overcrowding, stampede risks."},
+    {"name": "Neighborhood Dispute", "slug": "neighborhood_dispute", "icon": "🏡", "color": "#F59E0B", "description": "Property boundary disputes, aggressive arguments."},
+    {"name": "Community Safety Concern", "slug": "community_safety_concern", "icon": "🛡️", "color": "#10B981", "description": "General local safety advisory or neighborhood concern."},
+    {"name": "Accessibility Issue", "slug": "accessibility_issue", "icon": "♿", "color": "#3B82F6", "description": "Lack of ramps, broken wheelchair access points."},
+    {"name": "Disability Access Obstruction", "slug": "disability_access_obstruction", "icon": "♿", "color": "#F97316", "description": "Ramps blocked by vehicles, obstructed tactile paths."},
+    {"name": "Accessibility / Mobility Issue", "slug": "accessibility_mobility_issue", "icon": "🦯", "color": "#3B82F6", "description": "Impaired mobility barriers in public infrastructure."},
+    {"name": "Child Safety Concern", "slug": "child_safety_concern", "icon": "👶", "color": "#EF4444", "description": "Unaccompanied minors, unsafe play areas."},
+    {"name": "Elderly Safety Concern", "slug": "elderly_safety_concern", "icon": "👵", "color": "#F59E0B", "description": "Seniors requiring emergency aid or assistance."},
+    {"name": "Cybersecurity Incident", "slug": "cybersecurity_incident", "icon": "💻", "color": "#6366F1", "description": "Hacking alerts, public terminal malware."},
+    {"name": "Online Fraud / Scam", "slug": "online_fraud_scam", "icon": "💳", "color": "#DC2626", "description": "Phishing, financial scams, fraudulent links."},
+    {"name": "Identity Theft", "slug": "identity_theft", "icon": "🪪", "color": "#B91C1C", "description": "Impersonation, stolen identity credentials."},
+    {"name": "Account / Digital Service Abuse", "slug": "account_digital_abuse", "icon": "🔒", "color": "#EF4444", "description": "Compromised accounts, digital harassment."},
+    {"name": "Privacy Concern", "slug": "privacy_concern", "icon": "👁️", "color": "#8B5CF6", "description": "Unauthorized surveillance, camera misuse."},
+    {"name": "Data Security Incident", "slug": "data_security_incident", "icon": "🛡️", "color": "#3B82F6", "description": "Data breaches, exposed sensitive records."},
+    {"name": "Emergency & Distress", "slug": "emergency", "icon": "🆘", "color": "#991B1B", "description": "Severe distress, urgent safety hazards, fires."},
+    {"name": "Medical Emergency", "slug": "medical_emergency", "icon": "🚑", "color": "#0284C7", "description": "Medical distress, collapse, urgent health aid needed."},
+    {"name": "Fire & Electrical Hazard", "slug": "fire_hazard", "icon": "🔥", "color": "#D97706", "description": "Exposed wiring, transformer sparking, fire hazards."},
+    {"name": "Beach / Coastal Hazard", "slug": "beach_coastal_hazard", "icon": "🏖️", "color": "#0284C7", "description": "Strong currents, unmonitored dangerous shores."},
+    {"name": "Flooding / Waterlogging", "slug": "flooding_waterlogging", "icon": "🌊", "color": "#0284C7", "description": "Severe road waterlogging, stranded vehicles."},
+    {"name": "Extreme Weather Incident", "slug": "extreme_weather_incident", "icon": "🌩️", "color": "#DC2626", "description": "Cyclones, heavy squalls, extreme heatwaves."},
+    {"name": "Disaster / Natural Hazard", "slug": "disaster_natural_hazard", "icon": "🌋", "color": "#B91C1C", "description": "Earthquakes, landslides, natural disasters."},
+    {"name": "Evacuation Assistance", "slug": "evacuation_assistance", "icon": "🏃", "color": "#EF4444", "description": "Emergency evacuation guidance and help."},
+    {"name": "Service Disruption", "slug": "service_disruption", "icon": "⚠️", "color": "#EA580C", "description": "Interrupted civic services or municipal delays."},
+    {"name": "Public Service Complaint", "slug": "public_service_complaint", "icon": "📝", "color": "#6B7280", "description": "Civic service grievances or non-performance."},
+    {"name": "Unauthorized Construction", "slug": "unauthorized_construction", "icon": "🏗️", "color": "#D97706", "description": "Illegal building work without civic permits."},
+    {"name": "Illegal Advertising / Posters", "slug": "illegal_advertising_posters", "icon": "📜", "color": "#6B7280", "description": "Unpermitted banners, defacing public walls."},
+    {"name": "Encroachment / Public Space Obstruction", "slug": "encroachment_obstruction", "icon": "🚧", "color": "#F97316", "description": "Illegal stalls, permanent structure encroachments."},
+    {"name": "Market / Vendor Regulation Issue", "slug": "market_vendor_issue", "icon": "🏪", "color": "#8B5CF6", "description": "Unregulated markets, obstruction by vendors."},
+    {"name": "Other Service-Related Issue", "slug": "other_service_related_issue", "icon": "📋", "color": "#6B7280", "description": "General service complaints not categorized above."},
     {"name": "Other", "slug": "other", "icon": "📋", "color": "#6B7280", "description": "General urban safety concerns not covered above."},
 ]
 
@@ -202,7 +291,7 @@ async def seed_database(db: AsyncSession):
             await db.delete(old_inc)
         await db.flush()
 
-    # 4. Generate 85 Realistic Incidents
+    # 4. Generate 55 Realistic Incidents covering max unique categories
     severities = [SeverityLevel.LOW, SeverityLevel.MEDIUM, SeverityLevel.HIGH, SeverityLevel.CRITICAL]
     statuses = [IncidentStatus.PENDING, IncidentStatus.UNDER_REVIEW, IncidentStatus.APPROVED, IncidentStatus.REJECTED, IncidentStatus.RESOLVED]
     status_weights = [0.15, 0.20, 0.40, 0.10, 0.15]  # Most are approved/review
@@ -210,10 +299,34 @@ async def seed_database(db: AsyncSession):
     created_incidents = []
     now = datetime.now(timezone.utc)
 
-    for idx in range(85):
-        cat_slug = random.choice(list(category_map.keys()))
+    # Shuffle categories to maximize unique category coverage across the 55 incidents
+    available_cat_slugs = list(category_map.keys())
+    random.shuffle(available_cat_slugs)
+    num_incidents = 55
+    selected_slugs = [available_cat_slugs[i % len(available_cat_slugs)] for i in range(num_incidents)]
+
+    def get_category_severity(slug: str) -> SeverityLevel:
+        s = slug.lower()
+        if any(k in s for k in ["emergency", "accident", "crime", "fire", "assault", "chemical", "disaster", "evacuation", "gas_leak", "crowd"]):
+            return random.choices([SeverityLevel.HIGH, SeverityLevel.CRITICAL], weights=[0.6, 0.4])[0]
+        elif any(k in s for k in ["harassment", "hazard", "robbery", "theft", "suspicious", "pollution", "structural", "missing"]):
+            return random.choices([SeverityLevel.MEDIUM, SeverityLevel.HIGH], weights=[0.5, 0.5])[0]
+        elif any(k in s for k in ["lighting", "parking", "cleanliness", "noise", "furniture", "toilet", "lost"]):
+            return random.choices([SeverityLevel.LOW, SeverityLevel.MEDIUM], weights=[0.7, 0.3])[0]
+        return random.choices([SeverityLevel.LOW, SeverityLevel.MEDIUM, SeverityLevel.HIGH], weights=[0.35, 0.45, 0.20])[0]
+
+    logger.info(f"Clearing previous incidents for Coimbatore dataset update...")
+    result = await db.execute(select(Incident))
+    existing_incidents = result.scalars().all()
+    for old_inc in existing_incidents:
+        await db.delete(old_inc)
+    await db.flush()
+
+    for idx in range(num_incidents):
+        cat_slug = selected_slugs[idx]
         category = category_map[cat_slug]
-        title_template = random.choice(INCIDENT_TITLES[cat_slug])
+        default_titles = [f"{category.name} reported", f"Safety alert for {category.name}", f"Issue regarding {category.name}"]
+        title_template = random.choice(INCIDENT_TITLES.get(cat_slug, default_titles))
         street = STREETS[idx % len(STREETS)]
         title = f"{title_template} - {street.split(',')[0]}"
 
@@ -225,7 +338,7 @@ async def seed_database(db: AsyncSession):
         reporter = random.choice(users[1:]) if random.random() > 0.15 else None
         is_anon = True if reporter is None or random.random() < 0.2 else False
 
-        severity = random.choices(severities, weights=[0.25, 0.45, 0.20, 0.10])[0]
+        severity = get_category_severity(cat_slug)
         status = random.choices(statuses, weights=status_weights)[0]
 
         days_ago = random.randint(0, 60)
