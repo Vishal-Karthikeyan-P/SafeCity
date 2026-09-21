@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet'
 import * as polyline from '@mapbox/polyline'
-import type { Incident } from '@/types'
+import type { Incident, RouteData } from '@/types'
 import { toTitleCase } from '@/lib/utils'
 
 // Helper to get global L or fallback (dynamic evaluation to ensure CDN extensions are ready)
@@ -123,7 +123,12 @@ interface IncidentMapProps {
   startLocation?: { lat: number; lng: number } | null
   destLocation?: { lat: number; lng: number } | null
   heatmapData?: { lat: number; lng: number; weight: number }[]
-  routeData?: any // RouteData from our API
+  /** Single route (legacy) — used if allRoutes is not provided */
+  routeData?: RouteData
+  /** All route alternatives to draw simultaneously */
+  allRoutes?: RouteData[]
+  /** Index of the currently selected route in allRoutes */
+  selectedRouteIdx?: number
 }
 
 export function IncidentMap({
@@ -138,6 +143,8 @@ export function IncidentMap({
   destLocation,
   heatmapData,
   routeData,
+  allRoutes,
+  selectedRouteIdx = 0,
 }: IncidentMapProps) {
   const mapRef = useRef<L.Map | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -380,29 +387,90 @@ export function IncidentMap({
     }
   }, [heatmapData])
 
-  // Route Layer
+  // Route Layer — renders all route alternatives simultaneously
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
 
     const Leaflet = getL()
 
+    // Remove any previous route layer
     if (routeLayerRef.current) {
       map.removeLayer(routeLayerRef.current)
       routeLayerRef.current = null
     }
 
-    if (routeData && routeData.geometry) {
-      const decoded = polyline.decode(routeData.geometry)
+    // Determine which routes to render
+    const routes: RouteData[] = allRoutes && allRoutes.length > 0
+      ? allRoutes
+      : routeData
+        ? [routeData]
+        : []
 
-      const layerGroup = Leaflet.layerGroup()
+    if (routes.length === 0) return
 
-      const routeLine = Leaflet.polyline(decoded, { color: routeData.route_risk_level === 'safe' ? '#22c55e' : routeData.route_risk_level === 'moderate' ? '#f59e0b' : '#ef4444', weight: 6, opacity: 0.8 })
-      layerGroup.addLayer(routeLine)
+    // Per-route index color palette (matches RoutePlanPage)
+    const indexPalette = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6']
+    const riskColors: Record<string, string> = {
+      safe: '#22c55e',
+      moderate: '#f59e0b',
+      unsafe: '#ef4444',
+    }
 
-      routeLayerRef.current = layerGroup
-      map.addLayer(layerGroup)
-      map.fitBounds(routeLine.getBounds(), { padding: [50, 50] })
+    const layerGroup = Leaflet.layerGroup()
+    const allBounds: any[] = []
+
+    routes.forEach((route, idx) => {
+      if (!route?.geometry) return
+      try {
+        const decoded = polyline.decode(route.geometry)
+        if (decoded.length < 2) return
+
+        const isSelected = allRoutes && allRoutes.length > 1
+          ? idx === selectedRouteIdx
+          : true // single-route mode: always "selected"
+
+        // Selected route: thick, full opacity, risk-level color
+        // Non-selected routes: thin, dimmed, index palette color
+        let color: string
+        let weight: number
+        let opacity: number
+
+        if (isSelected) {
+          color = riskColors[route.route_risk_level] ?? '#6366F1'
+          weight = 7
+          opacity = 0.92
+        } else {
+          color = indexPalette[idx % indexPalette.length]
+          weight = 3
+          opacity = 0.45
+        }
+
+        // Draw a subtle white border under the selected route for contrast
+        if (isSelected) {
+          const border = Leaflet.polyline(decoded, {
+            color: '#ffffff',
+            weight: weight + 3,
+            opacity: 0.5,
+          })
+          layerGroup.addLayer(border)
+        }
+
+        const line = Leaflet.polyline(decoded, { color, weight, opacity })
+        layerGroup.addLayer(line)
+        allBounds.push(...decoded)
+      } catch (_) { /* skip malformed geometry */ }
+    })
+
+    routeLayerRef.current = layerGroup
+    map.addLayer(layerGroup)
+
+    // Fit map to encompass all route geometries
+    if (allBounds.length >= 2) {
+      try {
+        const bounds = Leaflet.latLngBounds(allBounds)
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 })
+      } catch (_) { /* ignore fitBounds errors */ }
     }
 
     return () => {
@@ -411,7 +479,7 @@ export function IncidentMap({
         routeLayerRef.current = null
       }
     }
-  }, [routeData])
+  }, [allRoutes, selectedRouteIdx, routeData])
 
   return (
     <div

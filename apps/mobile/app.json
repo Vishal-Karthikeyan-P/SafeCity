@@ -13,17 +13,40 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.safecity.mobile"
+      "bundleIdentifier": "com.safecity.mobile",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "SafeCity needs your location to display nearby safety incidents and tag your incident reports with accurate GPS coordinates.",
+        "NSCameraUsageDescription": "SafeCity needs camera access to capture evidence photos of safety hazards.",
+        "NSPhotoLibraryUsageDescription": "SafeCity needs access to your photo library to attach evidence images to incident reports."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#0f172a"
       },
       "package": "com.safecity.mobile",
+      "versionCode": 1,
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE"
       ]
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "SafeCity needs your location to display nearby safety hazards and geotag reports."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "SafeCity needs access to your photos to attach hazard evidence.",
+          "cameraPermission": "SafeCity needs camera access to photograph safety incidents."
+        }
+      ]
+    ]
   }
 }

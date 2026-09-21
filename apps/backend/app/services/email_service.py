@@ -97,6 +97,7 @@ async def send_otp_email(to_email: str, otp: str, expiry_minutes: int) -> bool:
     from_name = settings.SMTP_FROM_NAME
 
     try:
+        # pyrefly: ignore [missing-import]
         import aiosmtplib
         from email.mime.multipart import MIMEMultipart
         from email.mime.text import MIMEText

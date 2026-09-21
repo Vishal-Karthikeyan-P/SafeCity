@@ -106,21 +106,19 @@ export function ForgotPasswordPage() {
         {[1, 2, 3, 4].map((s) => (
           <div key={s} className="flex items-center gap-2">
             <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-xs transition-colors ${
-                step === s
+              className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-xs transition-colors ${step === s
                   ? 'bg-primary text-primary-foreground ring-4 ring-primary/20'
                   : step > s
-                  ? 'bg-green-500 text-white'
-                  : 'bg-muted text-muted-foreground'
-              }`}
+                    ? 'bg-green-500 text-white'
+                    : 'bg-muted text-muted-foreground'
+                }`}
             >
               {step > s ? <CheckCircle2 className="w-4 h-4" /> : s}
             </div>
             {s < 4 && (
               <div
-                className={`h-0.5 w-8 md:w-12 transition-colors ${
-                  step > s ? 'bg-green-500' : 'bg-muted'
-                }`}
+                className={`h-0.5 w-8 md:w-12 transition-colors ${step > s ? 'bg-green-500' : 'bg-muted'
+                  }`}
               />
             )}
           </div>
@@ -212,7 +210,7 @@ export function ForgotPasswordPage() {
 
             <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 p-3 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2 border border-amber-200 dark:border-amber-800">
               <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-              <span>The OTP is valid for 10 minutes and can only be used once. Never share this code.</span>
+              <span>The OTP is valid for 5 minutes and can only be used once. Never share this code.</span>
             </div>
 
             <Button

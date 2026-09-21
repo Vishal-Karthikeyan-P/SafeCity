@@ -4,6 +4,75 @@ All platform updates, new features, category expansions, database seeding enhanc
 
 ---
 
+## 📅 Release Version: 1.6.0 (September 2026) — Avoidance-Buffer Safe Routing 🚧
+
+### 🌟 New Features & Enhancements
+
+1. **500 m Avoidance-Buffer Route Filtering (`route_service.py`)**
+   - Before candidate deduplication and scoring, `RouteService` now queries PostGIS for all **HIGH** and **CRITICAL** severity, **route-relevant** (same category set as the scoring engine), **APPROVED/RESOLVED** incidents within a 10 km corridor around the requested start→destination line.
+   - Each qualifying incident creates a **500 m avoidance zone**.  Any candidate route whose OSRM polyline contains a decoded waypoint inside any avoidance zone is **rejected** from the candidate pool.
+   - Avoidance check is a pure-Python haversine pass over the already-decoded polyline waypoints — no extra PostGIS query per candidate.
+   - **Fallback**: if every candidate is rejected (danger zones block all routes), the system re-requests OSRM Stage 1 and returns results with `avoidance_warning: true`, so the frontend can surface an advisory instead of showing an empty response.
+
+2. **Updated Route API Response Fields**
+   - `avoidance_zone_count` — number of HIGH/CRITICAL incidents that created avoidance zones for this request.
+   - `avoidance_filtered_count` — number of candidate routes rejected by the avoidance filter.
+   - `avoidance_warning` — `true` when every candidate was filtered and the fallback pool was used.
+
+3. **Logging**
+   - `avoidance_zones` query result count logged at `INFO` level.
+   - Filtered candidate labels logged at `INFO` level for observability.
+   - Fallback trigger logged at `WARNING` level.
+
+4. **Documentation**
+   - `README.md` updated with a new *Avoidance-Buffer Route Filtering* section.
+   - Module-level docstring in `route_service.py` updated to document Stage 3.
+
+### 🔧 Files Changed
+
+| File | Change |
+|---|---|
+| `apps/backend/app/services/route_service.py` | Added `_fetch_avoidance_zones`, `_candidate_intersects_avoidance`, updated `_collect_candidates` and `get_safe_route` |
+| `README.md` | Added avoidance-buffer documentation section |
+| `PRODUCTION_LOG.md` | This entry |
+
+---
+
+## 📅 Release Version: 1.5.0 (September 2026) — Android Mobile App Implementation 📱
+
+ 
+### 🌟 New Features & Enhancements
+
+1. **Interactive Safety Map Screen (`MapScreen.tsx`)**
+   - Embedded Leaflet 1.9.4 + OpenStreetMap / CartoDB Voyager tiles via `react-native-webview`, fully matching SafeCity's web map architecture with zero external API key requirements.
+   - User location marker with blue pulsating GPS ring and "Center on Me" FAB button.
+   - Rendered real approved incidents from FastAPI `/api/v1/incidents/nearby` using custom teardrop SVG pins colored by severity (`low`, `medium`, `high`, `critical`) with category icons.
+   - Interactive bidirectional messaging: tapping a marker sends a postMessage from WebView to React Native opening the **Incident Details Bottom Sheet / Modal**.
+   - Added category filter chips (All Categories + individual category chips) and severity filter chips (`All`, `Critical`, `High`, `Medium`, `Low`).
+   - Added Map View / List View toggle button with full card list fallback.
+   - Comprehensive loading, error, empty, and permission states.
+
+2. **Mobile Incident Reporting Screen (`ReportScreen.tsx`)**
+   - Fetches real categories dynamically from `/api/v1/incidents/categories`.
+   - 4-tier severity selector with color-coded active states.
+   - Validated title and description inputs.
+   - **Evidence Photo Attachment**: Integrated `expo-image-picker` with Camera capture and Photo Gallery picker, including thumbnail preview and remove capability.
+   - **Automatic GPS Location Capture**: Integrated `expo-location` to automatically fetch current coordinates with reverse geocoding to prefill the address, including a "Refresh GPS" button.
+   - **Review Before Submit Modal**: Summarizes title, description, category, severity, address, GPS coordinates, privacy state, and photo thumbnail before sending.
+   - **Two-Stage Submission**: Creates incident via `POST /api/v1/incidents` and uploads evidence photo via `POST /api/v1/incidents/{id}/images` using `multipart/form-data`.
+   - Resets form state completely upon successful submission and invalidates query caches.
+
+3. **Location & Camera Permissions Architecture**
+   - Configured `app.json` with Android permissions: `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `CAMERA`, `READ_EXTERNAL_STORAGE`.
+   - Handled `granted`, `denied`, `revoked`, and location unavailable states gracefully, falling back to default Coimbatore coordinates (`11.0168, 76.9558`).
+
+4. **Android Build & Testing Setup (`eas.json` & Gradle)**
+   - Configured `eas.json` with a `preview` profile targeting `apk` build type for direct device installation without Google Play Store requirements.
+   - Configured `env.ts` with `EXPO_PUBLIC_API_URL` support, defaulting to active Wi-Fi LAN IP (`http://10.89.126.243:8000/api/v1`) for physical devices and `10.0.2.2` for Android emulator.
+   - Generated native Android project via `npx expo prebuild --platform android` with Gradle wrapper.
+
+---
+
 ## 📅 Release Version: 1.4.0 (August 2026)
 
 ### 🌟 New Features & Enhancements

@@ -1,29 +1,33 @@
 import { Platform } from 'react-native';
 
-export const API_BASE_URL = 'http://10.200.50.243:8000/api/v1';
+/**
+ * Backend API URL resolution.
+ * Priority:
+ * 1. process.env.EXPO_PUBLIC_API_URL (set via .env or EAS build secrets)
+ * 2. If running on Android emulator / localhost
+ * 3. Default active machine LAN IP so physical Android devices on the same Wi-Fi can connect
+ */
+const resolveApiBaseUrl = (): string => {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
 
-// Default Coimbatore coordinates
+  // Active LAN IP for physical Android testing on current Wi-Fi
+  const LAN_HOST = '10.89.126.243';
+
+  // In Android emulator, 10.0.2.2 points to host loopback interface
+  // For physical Android devices, LAN IP is used
+  return `http://${LAN_HOST}:8000/api/v1`;
+};
+
+export const API_BASE_URL = resolveApiBaseUrl();
+
+// Default Coimbatore coordinates (Gandhipuram / Town Hall center)
 export const DEFAULT_COORDS = {
   latitude: 11.0168,
   longitude: 76.9558,
   cityName: 'Coimbatore, TN',
 };
-
-// Backend API URL
-// In Android emulator, 10.0.2.2 maps to host machine localhost:8000
-// For physical devices on the same Wi-Fi, replace with machine IP (e.g. 10.200.50.243)
-const getApiBaseUrl = () => {
-  if (__DEV__) {
-    if (Platform.OS === 'android') {
-      // 10.0.2.2 is the special alias to host loopback interface in Android emulator
-      return 'http://10.0.2.2:8000/api/v1';
-    }
-    return 'http://127.0.0.1:8000/api/v1';
-  }
-  return 'http://10.0.2.2:8000/api/v1';
-};
-
-//export const API_BASE_URL = getApiBaseUrl();
 
 export const Config = {
   apiBaseUrl: API_BASE_URL,

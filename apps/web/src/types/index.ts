@@ -129,19 +129,40 @@ export interface RouteIncident {
   lng: number
   category_icon: string
   category_name: string
+  distance_meters?: number
+  is_verified?: boolean
+  is_route_relevant?: boolean
+  penalty_impact?: number
+}
+
+/** Top incident category contributing to route risk */
+export interface RouteRiskFactor {
+  icon: string
+  name: string
+  count: number
+  total_penalty: number
 }
 
 export interface RouteData {
+  /** Human-readable label e.g. "Shortest", "Alternative 1", "Northern Detour" */
+  label?: string
   geometry: string
   distance_m: number
   duration_s: number
   safety_score: number
+  /** Balanced composite score (safety 65% + distance 20% + duration 15%) */
+  composite_score?: number
   route_risk_level: 'safe' | 'moderate' | 'unsafe'
+  relevant_incident_count?: number
+  explanation?: string
   incidents: RouteIncident[]
+  /** Top incident categories driving route risk */
+  risk_factors?: RouteRiskFactor[]
 }
 
 export interface RoutePlanResponse {
   routes: RouteData[]
+  recommended_route_idx: number
   shortest_route_idx: number
   safest_route_idx: number
 }

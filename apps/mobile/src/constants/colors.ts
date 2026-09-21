@@ -21,6 +21,9 @@ export const Colors = {
   criticalBg: '#fee2e2',
   criticalText: '#b91c1c',
 
+  error: '#ef4444',
+  warning: '#f59e0b',
+
   // UI colors
   background: '#f8fafc',
   surface: '#ffffff',

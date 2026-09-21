@@ -9,17 +9,26 @@ interface HeaderProps {
     icon: React.ReactNode;
     onPress: () => void;
   };
+  rightComponent?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }
 
-export const Header: React.FC<HeaderProps> = ({ title, subtitle, rightAction, style }) => {
+export const Header: React.FC<HeaderProps> = ({
+  title,
+  subtitle,
+  rightAction,
+  rightComponent,
+  style,
+}) => {
   return (
     <View style={[styles.header, style]}>
       <View style={styles.titleContainer}>
         <Text style={styles.title}>{title}</Text>
         {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
       </View>
-      {rightAction && (
+      {rightComponent ? (
+        rightComponent
+      ) : rightAction ? (
         <TouchableOpacity
           onPress={rightAction.onPress}
           style={styles.actionButton}
@@ -27,7 +36,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle, rightAction, st
         >
           {rightAction.icon}
         </TouchableOpacity>
-      )}
+      ) : null}
     </View>
   );
 };

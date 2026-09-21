@@ -259,16 +259,58 @@ Use the seeded demo credentials:
 
 ---
 
-### Mobile App Screens
+### Step 6 — Building & Installing Android Test APK
 
-| Screen | Description |
+#### Option A — Local Debug APK Build (No Cloud Account Required)
+
+If you have JDK 17 and Android SDK installed locally:
+
+```bash
+cd apps/mobile
+
+# 1. Generate the native Android project (if not already generated)
+npx expo prebuild --platform android
+
+# 2. Build the Debug APK using Gradle Wrapper
+cd android
+./gradlew.bat assembleDebug       # Windows
+# ./gradlew assembleDebug         # macOS/Linux
+```
+
+The resulting test APK is located at:
+```text
+apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+**To install on a connected Android phone or emulator via ADB:**
+```bash
+adb install apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+#### Option B — EAS Cloud Preview APK Build
+
+An `eas.json` profile is configured for generating installable APKs directly in Expo's cloud builder:
+
+```bash
+cd apps/mobile
+npm install -g eas-cli
+eas login
+eas build -p android --profile preview
+```
+
+---
+
+### Mobile App Screens & Core Features
+
+| Screen / Feature | Capabilities & Implementation |
 |---|---|
-| **Login / Register** | JWT auth with secure token storage |
-| **Home** | Area safety score, nearby incident count, quick actions |
-| **Map** | Nearby incidents list with severity filters |
-| **Report Incident** | Create incident with category, severity, description |
-| **Notifications** | In-app alerts with unread badge count |
-| **Profile** | View/edit profile, logout |
+| **Safety Map** | • Interactive Leaflet + OpenStreetMap engine via WebView (zero external API keys needed)<br>• GPS-based user location tracking with pulsing beacon & "Center on Me" action<br>• Real-time approved incidents from FastAPI/PostGIS<br>• Severity-colored teardrop pins with category icons (Critical, High, Medium, Low)<br>• Tap pin or card to open **Incident Detail Modal** with address, coordinates, and distance from user<br>• Category & severity filter chips + Map/List view toggle |
+| **Incident Reporting** | • Select category from 90+ real database categories<br>• 4-tier severity selector (Low, Medium, High, Critical)<br>• Title & multiline description validation<br>• Photo capture via camera or gallery picker (`expo-image-picker`) with preview & remove<br>• Automatic GPS coordinate acquisition with reverse-geocoded address (`expo-location`)<br>• **Review Modal** to confirm all details and photo before sending<br>• Two-stage submission (incident creation + evidence photo upload) with auto-reset |
+| **Permissions** | • Minimum permissions required: `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `CAMERA`<br>• Graceful permission handling with granted, denied, and fallback states |
+| **Authentication** | • JWT authentication with persistent secure token storage<br>• Auto token refresh on 401 Unauthorized |
+| **Home & Overview** | • Live city safety score, nearby incident count, quick actions |
+| **Notifications** | • In-app safety alerts with unread badge count |
+| **Profile** | • View profile, account details, and logout |
 
 ---
 
@@ -451,3 +493,90 @@ community_alerts
 
 All geographic data uses **PostGIS Geography** type (SRID 4326) for accurate spatial queries.
 
+---
+
+## 🔢 Safety Scoring Methodology
+
+SafeCity uses a **deterministic, explainable scoring algorithm** for both Area Safety Scores and Route Safety Scores. All weights are centrally configured in `apps/backend/app/services/safety_score_service.py`.
+
+### Area Safety Score (`GET /api/v1/safety/area`)
+
+Produces a score from **0 (most dangerous) to 100 (safest)** for a circular geographic area.
+
+**Inputs:**
+- All non-rejected incidents within the selected radius (PostGIS `ST_DWithin`)
+
+**Per-incident penalty:**
+```
+penalty = CategorySeverityWeight × ProximityFactor × RecencyFactor × VerificationFactor
+```
+
+| Factor | Description |
+|---|---|
+| **CategorySeverityWeight** | Category-specific base weight per severity (e.g., Critical Crime = 28.0, Critical Illegal Parking = 10.0) |
+| **ProximityFactor** | Linear decay from 1.0 (at center) → 0.1 (at radius edge) using PostGIS `ST_Distance` |
+| **RecencyFactor** | 0–7 days = 1.5×, 8–30 days = 1.2×, 31–90 days = 0.8×, 90+ days = 0.4× |
+| **VerificationFactor** | `APPROVED`/`RESOLVED` = 1.0 (full weight) · `PENDING`/`UNDER_REVIEW` = 0.2 (20% weight) |
+
+**Density adjustment:**
+- > 10 incidents/km² → additional -15 points
+- > 5 incidents/km² → additional -10 points
+- > 2 incidents/km² → additional -5 points
+
+**Final:** `score = max(0, min(100, 100 − Σpenalties − density_penalty))`
+
+Each response includes an `explanation` field summarising the score in plain English.
+
+---
+
+### Route Safety Score (`GET /api/v1/routes/plan`)
+
+Produces a score from **0 to 100** for a specific navigation route.
+
+**Key difference from Area Score:** Only **route-relevant categories** affect the route penalty. Non-route-relevant incidents (e.g., Lost & Found, Water Quality, Missing Device) have their `relevance_mult` set to `0.0` and contribute nothing.
+
+**Route-relevant categories include:**
+- Traffic Accidents, Road Hazards, Traffic Violations, Traffic Signal Malfunctions
+- Pedestrian Safety, Blocked Footpaths
+- Poor Lighting (Streetlight Malfunctions)
+- Crime, Theft & Robbery, Assault & Violence, Harassment, Suspicious Activity
+- Drainage & Flooding, Gas Leaks, Chemical Spills
+- Animal Hazards, Animal Bites, Fallen Trees / Vegetation Hazards
+- Construction Hazards, Unsafe Construction Sites, Public Disturbance
+
+**Per-incident penalty:**
+```
+penalty = CategorySeverityWeight × DistanceFactor × RecencyFactor × VerificationFactor × RelevanceFactor
+```
+
+| Factor | Description |
+|---|---|
+| **DistanceFactor** | Linear decay from 1.0 (on route) → 0.1 (at buffer edge) using PostGIS `ST_Distance` to LineString |
+| **RelevanceFactor** | Route-relevant = 1.0 · Non-route-relevant = 0.0 |
+
+Each incident in the route response includes `is_route_relevant`, `is_verified`, `distance_meters`, and `penalty_impact` fields for full transparency.
+
+---
+
+### Avoidance-Buffer Route Filtering
+
+Before the candidate pool is deduplicated and scored, SafeCity applies an **avoidance filter** to eliminate routes that pass through danger areas:
+
+**Qualifying incidents (avoidance triggers)**
+- Severity: **HIGH** or **CRITICAL**
+- Category: any **route-relevant** category (see list above)
+- Verification: **APPROVED** or **RESOLVED** status only
+
+**Avoidance zone:** a **500 m radius** circle around each qualifying incident's GPS coordinates.
+
+**Filter rule:** any candidate route whose OSRM polyline contains a waypoint within 500 m of an avoidance incident is **rejected from the pool**.  If a viable alternative without those zones exists, it will be preferred.
+
+**Fallback behaviour:** if every candidate is filtered out (all routes unavoidably pass through danger zones), the API falls back to the best OSRM-direct route and sets `avoidance_warning: true` in the response so the frontend can display a clear advisory.
+
+**Additional response fields** (top-level, alongside `routes[]`):
+
+| Field | Type | Description |
+|---|---|---|
+| `avoidance_zone_count` | `int` | Number of HIGH/CRITICAL incidents that created avoidance zones |
+| `avoidance_filtered_count` | `int` | Number of candidate routes rejected by the avoidance filter |
+| `avoidance_warning` | `bool` | `true` when all candidates were filtered and the fallback was used |

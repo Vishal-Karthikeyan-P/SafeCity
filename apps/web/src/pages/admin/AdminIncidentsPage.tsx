@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { Search, Eye, Filter, CheckCircle, XCircle, Trash2, MapPin, Calendar, User as UserIcon, ShieldAlert } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/select'
 import { useAdminIncidents, useUpdateIncidentStatus, useDeleteIncident, useCategories } from '@/api/incidents'
 import { formatDate, toTitleCase, getImageUrl } from '@/lib/utils'
-import type { Incident, IncidentStatus } from '@/types'
+import type { Incident, IncidentStatus, SeverityLevel } from '@/types'
 
 export function AdminIncidentsPage() {
   const [page, setPage] = useState(1)
@@ -30,7 +30,7 @@ export function AdminIncidentsPage() {
     search: search || undefined,
     status: (statusFilter as IncidentStatus) || undefined,
     category_id: categoryFilter || undefined,
-    severity: severityFilter || undefined,
+    severity: (severityFilter as SeverityLevel) || undefined,
     sort_by: sortBy,
   })
 

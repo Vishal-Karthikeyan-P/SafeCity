@@ -138,7 +138,11 @@ class IncidentService:
             url = f"/uploads/{unique_name}"
             await self.repo.add_image(incident_id, file.filename or unique_name, url)
 
-        return _serialize(await self.repo.get_by_id(incident_id))
+        await self.db.flush()
+        refreshed = await self.repo.get_by_id(incident_id)
+        if refreshed:
+            await self.db.refresh(refreshed, ["images"])
+        return _serialize(refreshed)
 
     async def update_status(
         self,
