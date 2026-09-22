@@ -159,6 +159,9 @@ export function RoutePlanPage() {
   const recommendedIdx = routeResponse?.recommended_route_idx ?? -1
   const safestIdx = routeResponse?.safest_route_idx ?? -1
   const shortestIdx = routeResponse?.shortest_route_idx ?? -1
+  const cleanIdx = routeResponse?.clean_route_idx ?? -1
+  const avoidanceWarning = routeResponse?.avoidance_warning ?? false
+  const avoidanceZoneCount = routeResponse?.avoidance_zone_count ?? 0
 
   return (
     <div className="container mx-auto py-6 px-4 flex flex-col lg:flex-row gap-6 max-w-7xl">
@@ -260,6 +263,17 @@ export function RoutePlanPage() {
           </CardContent>
         </Card>
 
+        {/* Avoidance warning banner */}
+        {avoidanceWarning && avoidanceZoneCount > 0 && (
+          <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-800 text-[11px] leading-snug">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+            <span>
+              <strong>{avoidanceZoneCount} HIGH/CRITICAL danger zone{avoidanceZoneCount !== 1 ? 's' : ''}</strong> detected near this corridor.
+              All route alternatives pass through at least one — showing best available options with warning.
+            </span>
+          </div>
+        )}
+
         {/* ── Route Comparison Panel ─────────────────────────────────────── */}
         {routes.length > 0 && (
           <div className="flex flex-col gap-2">
@@ -275,6 +289,7 @@ export function RoutePlanPage() {
               const isRecommended = idx === recommendedIdx
               const isSafest = idx === safestIdx
               const isShortest = idx === shortestIdx
+              const isClean = idx === cleanIdx
               const lineColor = routeLineColor(idx)
 
               return (
@@ -312,6 +327,11 @@ export function RoutePlanPage() {
                       {isShortest && (
                         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500 text-white uppercase">
                           Shortest
+                        </span>
+                      )}
+                      {isClean && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-600 text-white uppercase flex items-center gap-0.5">
+                          <CheckCircle className="w-2 h-2" />Clean
                         </span>
                       )}
                       <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white uppercase ${riskBadgeBg(route.route_risk_level)}`}>

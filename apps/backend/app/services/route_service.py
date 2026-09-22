@@ -60,6 +60,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.models.incident import Incident, IncidentCategory, SeverityLevel, IncidentStatus
 from app.services.safety_score_service import SafetyScoreService, ROUTE_RELEVANT_CATEGORIES
 
@@ -100,9 +101,10 @@ VIA_WIDE_MAGNITUDE = 0.85
 AVOIDANCE_RADIUS_M: float = 500.0
 
 # Half-width (km) of the corridor around the start→destination straight line
-# used to pre-fetch qualifying avoidance incidents from the database.  Set
-# large enough to cover all via-waypoint detours (up to ~VIA_SIDE_MAGNITUDE°).
-AVOIDANCE_CORRIDOR_KM: float = 10.0
+# used to pre-fetch qualifying avoidance incidents from the database.
+# 3 km covers via-waypoint detours (max perpendicular shift ≈ 0.040° ≈ ~4.5 km)
+# without sweeping up incidents that are too far away to block any real route.
+AVOIDANCE_CORRIDOR_KM: float = 3.0
 
 # Severities that trigger an avoidance zone.
 _AVOIDANCE_SEVERITIES = {SeverityLevel.HIGH, SeverityLevel.CRITICAL}
@@ -229,7 +231,7 @@ def _candidate_intersects_avoidance(
 class RouteService:
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.osrm_base = "http://router.project-osrm.org/route/v1/driving"
+        self.osrm_base = settings.OSRM_BASE_URL
         self.safety_service = SafetyScoreService(db)
 
     # -----------------------------------------------------------------------
@@ -583,31 +585,77 @@ class RouteService:
             return {"error": "No routes could be obtained from the routing service."}
 
         # Soft fallback: all candidates were filtered by avoidance zones but we
-        # still need to return *something* – use the unfiltered pool with a
-        # warning so the frontend can surface an appropriate message.
+        # still need to return *something* – run the full via-waypoint pipeline
+        # WITHOUT the avoidance filter so we maximise the candidate pool, then
+        # surface a clear warning for the frontend.
         if not safe_candidates and avoidance_filtered > 0:
             log.warning(
                 "avoidance_filter: all %d candidate(s) pass through HIGH/CRITICAL zones; "
                 "falling back to unfiltered candidates with avoidance_warning=True",
                 avoidance_filtered,
             )
-            # All candidates were discarded; re-run Stage 1 without the filter
-            # so we still return usable routes (with avoidance_warning=True).
-            fallback_osrm = await self._osrm_request(
+            # ── Rebuild Stage 1 + Stage 2 + Stage 2b without avoidance filter ──
+            fallback_candidates: List[Dict[str, Any]] = []
+
+            fb_osrm = await self._osrm_request(
                 [(start_lat, start_lng), (dest_lat, dest_lng)], alternatives=True
             )
             direct_labels = ["Shortest", "Alternative 1", "Alternative 2", "Alternative 3"]
-            safe_candidates = [
-                {
-                    "geometry": r["geometry"],
-                    "distance": r.get("distance", 0),
-                    "duration": r.get("duration", 0),
-                    "label": direct_labels[i] if i < len(direct_labels) else f"Alternative {i}",
-                }
-                for i, r in enumerate(fallback_osrm)
-                if r.get("geometry")
-            ]
+            for i, r in enumerate(fb_osrm):
+                geo = r.get("geometry", "")
+                if geo:
+                    fallback_candidates.append({
+                        "geometry": geo,
+                        "distance": r.get("distance", 0),
+                        "duration": r.get("duration", 0),
+                        "label": direct_labels[i] if i < len(direct_labels) else f"Alternative {i}",
+                    })
+
+            side_names = {1.0: "N", -1.0: "S"}
+            fraction_names = {
+                0.20: "VEarly", 0.35: "Early", 0.50: "Mid", 0.65: "Late", 0.80: "VLate",
+            }
+            fb_via_tasks: List = []
+            fb_via_labels: List[str] = []
+            for fraction in VIA_FRACTIONS:
+                for side in [1.0, -1.0]:
+                    for mag, prefix in [
+                        (VIA_SIDE_MAGNITUDE, ""),
+                        (VIA_WIDE_MAGNITUDE, "Wide-"),
+                    ]:
+                        via_pt = _offset_via_point(
+                            start_lat, start_lng, dest_lat, dest_lng,
+                            fraction, side, magnitude_override=mag,
+                        )
+                        fb_via_tasks.append(
+                            self._osrm_request(
+                                [(start_lat, start_lng), via_pt, (dest_lat, dest_lng)],
+                                alternatives=False,
+                            )
+                        )
+                        fb_via_labels.append(
+                            f"{prefix}{side_names[side]}{fraction_names.get(fraction, str(fraction))}"
+                        )
+            fb_via_results = await asyncio.gather(*fb_via_tasks, return_exceptions=True)
+            for label, result in zip(fb_via_labels, fb_via_results):
+                if isinstance(result, Exception) or not result:
+                    continue
+                r = result[0]
+                geo = r.get("geometry", "")
+                if geo:
+                    fallback_candidates.append({
+                        "geometry": geo,
+                        "distance": r.get("distance", 0),
+                        "duration": r.get("duration", 0),
+                        "label": label,
+                    })
+
+            safe_candidates = fallback_candidates
             avoidance_warning = True
+            log.info(
+                "avoidance_filter: fallback pool has %d candidates",
+                len(safe_candidates),
+            )
 
         if not safe_candidates:
             return {"error": "No routes could be obtained from the routing service."}
@@ -644,6 +692,7 @@ class RouteService:
                     "explanation": "Safety scoring unavailable for this route.",
                 }
 
+            relevant_count = safety_data.get("relevant_incident_count", 0)
             risk_factors = self._extract_risk_factors(safety_data.get("incidents", []))
 
             processed.append({
@@ -653,7 +702,10 @@ class RouteService:
                 "duration_s": round(duration_s, 1),
                 "safety_score": safety_data["score"],
                 "route_risk_level": safety_data["risk_level"],
-                "relevant_incident_count": safety_data.get("relevant_incident_count", 0),
+                "relevant_incident_count": relevant_count,
+                # True when no route-relevant incidents lie within the 200 m
+                # scoring buffer of any waypoint on this route.
+                "incident_free": relevant_count == 0,
                 "explanation": safety_data.get("explanation", ""),
                 "incidents": safety_data.get("incidents", []),
                 "risk_factors": risk_factors,
@@ -681,12 +733,31 @@ class RouteService:
             range(len(processed)),
             key=lambda i: (processed[i]["safety_score"], -processed[i]["distance_m"]),
         )
+        # clean_route_idx: first route (by composite rank) with zero route-relevant
+        # incidents; None when every route has at least one nearby incident.
+        clean_route_idx: int | None = next(
+            (i for i, r in enumerate(processed) if r["incident_free"]),
+            None,
+        )
+
+        best_safety = max(r["safety_score"] for r in processed)
+        log.info(
+            "get_safe_route: returning %d route(s) – best_safety=%.1f, "
+            "clean_route_idx=%s, avoidance_zones=%d, filtered=%d",
+            len(processed),
+            best_safety,
+            clean_route_idx,
+            len(avoidance_zones),
+            avoidance_filtered,
+        )
 
         return {
             "routes": processed,
             "recommended_route_idx": recommended_idx,
             "shortest_route_idx": shortest_idx,
             "safest_route_idx": safest_idx,
+            # Index of the first incident-free route (composite-ranked), or null.
+            "clean_route_idx": clean_route_idx,
             # Avoidance metadata
             "avoidance_zone_count": len(avoidance_zones),
             "avoidance_filtered_count": avoidance_filtered,

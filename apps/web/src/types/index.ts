@@ -154,6 +154,8 @@ export interface RouteData {
   composite_score?: number
   route_risk_level: 'safe' | 'moderate' | 'unsafe'
   relevant_incident_count?: number
+  /** True when zero route-relevant incidents lie within the scoring buffer */
+  incident_free?: boolean
   explanation?: string
   incidents: RouteIncident[]
   /** Top incident categories driving route risk */
@@ -165,6 +167,14 @@ export interface RoutePlanResponse {
   recommended_route_idx: number
   shortest_route_idx: number
   safest_route_idx: number
+  /** Index (in routes[]) of the first incident-free route by composite rank, or null */
+  clean_route_idx: number | null
+  /** Number of HIGH/CRITICAL incidents that created avoidance zones */
+  avoidance_zone_count: number
+  /** Number of candidate routes rejected by the avoidance filter */
+  avoidance_filtered_count: number
+  /** true when every candidate was filtered and a fallback pool was used */
+  avoidance_warning: boolean
 }
 
 export interface HeatmapFilters {

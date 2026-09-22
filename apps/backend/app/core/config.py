@@ -55,6 +55,9 @@ class Settings(BaseSettings):
                 return [i.strip() for i in v.split(",")]
         return v
 
+    # ── Routing / OSRM ─────────────────────────────────────────
+    OSRM_BASE_URL: str = "http://router.project-osrm.org/route/v1/driving"
+
     # ── File Storage ──────────────────────────────────────────
     UPLOAD_DIR: str = "uploads"
     MAX_UPLOAD_SIZE_MB: int = 10
