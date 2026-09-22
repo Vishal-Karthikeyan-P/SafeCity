@@ -224,7 +224,7 @@ CATEGORIES_DATA = [
     {"name": "Stray Animals & Pest Hazard", "slug": "animal_hazard", "icon": "🐕", "color": "#10B981"},
     {"name": "Illegal Dumping", "slug": "illegal_dumping", "icon": "🗑️", "color": "#059669"},
     {"name": "Public Health Concern", "slug": "public_health_concern", "icon": "🩺", "color": "#0284C7"},
-    {"name": "Water Leakage", "slug": "water_supply_issue", "icon": "🚰", "color": "#0284C7"},
+    {"name": "Water Supply Issue", "slug": "water_supply_issue", "icon": "🚰", "color": "#0284C7"},
     {"name": "Chemical Spill", "slug": "chemical_spill", "icon": "☣️", "color": "#DC2626"},
     {"name": "Emergency & Distress", "slug": "emergency", "icon": "🆘", "color": "#991B1B"},
     {"name": "Medical Emergency", "slug": "medical_emergency", "icon": "🚑", "color": "#0284C7"},
@@ -279,7 +279,12 @@ async def seed_database(db: AsyncSession):
         if cat_data["slug"] in existing_slugs:
             continue
         existing_slugs.add(cat_data["slug"])
-        result = await db.execute(select(IncidentCategory).where(IncidentCategory.slug == cat_data["slug"]))
+        # Query by slug OR name to avoid violating uq_incident_categories_name or uq_incident_categories_slug
+        result = await db.execute(
+            select(IncidentCategory).where(
+                (IncidentCategory.slug == cat_data["slug"]) | (IncidentCategory.name == cat_data["name"])
+            )
+        )
         cat = result.scalar_one_or_none()
         if not cat:
             cat = IncidentCategory(
@@ -288,6 +293,13 @@ async def seed_database(db: AsyncSession):
                 description=cat_data.get("description", "")
             )
             db.add(cat)
+            await db.flush()
+        else:
+            # Sync name / slug / color if it already existed
+            cat.name = cat_data["name"]
+            cat.slug = cat_data["slug"]
+            cat.icon = cat_data["icon"]
+            cat.color = cat_data["color"]
             await db.flush()
         category_map[cat.slug] = cat
     logger.info(f"Seeded {len(category_map)} incident categories.")
