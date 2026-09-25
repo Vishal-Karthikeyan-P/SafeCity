@@ -43,17 +43,26 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:80",
         "http://localhost",
+        "https://safe-city-web.vercel.app",
+        "https://safecity-web.vercel.app",
     ]
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        origins: List[str] = []
         if isinstance(v, str):
             try:
-                return json.loads(v)
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    origins = [str(item).strip().rstrip("/") for item in parsed if item]
+                elif isinstance(parsed, str):
+                    origins = [parsed.strip().rstrip("/")]
             except Exception:
-                return [i.strip() for i in v.split(",")]
-        return v
+                origins = [i.strip().rstrip("/") for i in v.split(",") if i.strip()]
+        elif isinstance(v, list):
+            origins = [str(i).strip().rstrip("/") for i in v if i]
+        return origins
 
     # ── Routing / OSRM ─────────────────────────────────────────
     OSRM_BASE_URL: str = "http://router.project-osrm.org/route/v1/driving"
