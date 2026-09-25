@@ -1,4 +1,4 @@
-﻿"""
+"""
 Password Reset Service -- OTP-based forgot-password flow.
 
 Security design:
@@ -72,14 +72,24 @@ class PasswordResetService:
         """
         expiry_minutes = settings.OTP_EXPIRY_MINUTES
 
-        user = await self.user_repo.get_by_email(email)
+        email_clean = email.strip().lower()
+        user = await self.user_repo.get_by_email(email_clean)
+        if not user:
+            # Check case-insensitive match as fallback
+            from sqlalchemy import func
+            from app.models.user import User
+            stmt = select(User).where(func.lower(User.email) == email_clean)
+            res = await self.db.execute(stmt)
+            user = res.scalar_one_or_none()
+
         if user and user.is_active:
             # Check rate limiting: prevent requests more than once per 60 seconds
             existing = await self._get_existing_otp(user.id)
             if existing:
                 cooldown_cutoff = datetime.now(timezone.utc) - timedelta(seconds=60)
-                if existing.created_at.replace(tzinfo=timezone.utc) > cooldown_cutoff:
-                    # Still in cooldown -- return generic message silently
+                created_at_utc = existing.created_at if existing.created_at.tzinfo else existing.created_at.replace(tzinfo=timezone.utc)
+                if created_at_utc > cooldown_cutoff:
+                    logger.info("OTP request for %s suppressed due to 60s cooldown", email_clean)
                     return {"message": "If the email is registered, an OTP has been sent."}
 
             # Delete all old OTP records for this user
@@ -102,7 +112,11 @@ class PasswordResetService:
             await self.db.commit()
 
             # Send email (non-blocking; failure does not expose whether email exists)
-            await send_otp_email(email, otp, expiry_minutes)
+            sent = await send_otp_email(user.email, otp, expiry_minutes)
+            if not sent:
+                logger.warning("Failed to dispatch OTP email to %s", user.email)
+        else:
+            logger.info("OTP requested for unregistered or inactive email: %s", email)
 
         # Always return the same generic message
         return {"message": "If the email is registered, an OTP has been sent."}

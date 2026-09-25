@@ -1,4 +1,4 @@
-﻿"""
+"""
 Email Service -- async SMTP email sender for SafeCity OTP emails.
 
 IMPORTANT: Never log OTP values or SMTP credentials.
@@ -89,7 +89,11 @@ async def send_otp_email(to_email: str, otp: str, expiry_minutes: int) -> bool:
     """
     # Check configuration
     if not settings.SMTP_HOST or not (settings.SMTP_USERNAME or settings.SMTP_USER):
-        logger.warning("SMTP not configured. Forgot-password email not sent.")
+        logger.warning(
+            "SMTP not configured properly (SMTP_HOST=%s, SMTP_USERNAME=%s). Forgot-password email not sent.",
+            settings.SMTP_HOST,
+            settings.SMTP_USERNAME or settings.SMTP_USER,
+        )
         return False
 
     smtp_username = settings.SMTP_USERNAME or settings.SMTP_USER
@@ -97,7 +101,6 @@ async def send_otp_email(to_email: str, otp: str, expiry_minutes: int) -> bool:
     from_name = settings.SMTP_FROM_NAME
 
     try:
-        # pyrefly: ignore [missing-import]
         import aiosmtplib
         from email.mime.multipart import MIMEMultipart
         from email.mime.text import MIMEText
@@ -126,10 +129,10 @@ async def send_otp_email(to_email: str, otp: str, expiry_minutes: int) -> bool:
             password=settings.SMTP_PASSWORD,
             start_tls=True,
         )
-        logger.info("OTP email sent to %s", to_email)
+        logger.info("OTP email successfully sent via SMTP to %s", to_email)
         return True
 
     except Exception as exc:
-        # Log error but NOT the OTP or password
-        logger.error("Failed to send OTP email to %s: %s", to_email, type(exc).__name__)
+        # Log exact error details for debugging (NOT the OTP or password)
+        logger.error("Failed to send OTP email to %s via %s:%s - Error: %s: %s", to_email, settings.SMTP_HOST, settings.SMTP_PORT, type(exc).__name__, exc)
         return False
