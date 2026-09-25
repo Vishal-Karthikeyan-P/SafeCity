@@ -106,8 +106,9 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           locationName={coords.cityName}
         />
 
-        {/* Quick Actions (Report, Map, SOS) */}
+        {/* Quick Actions (Safe Route, Report, Map, SOS) */}
         <QuickActions
+          onNavigateRoutes={() => navigation.navigate('Routes')}
           onNavigateReport={() => navigation.navigate('Report')}
           onNavigateMap={() => navigation.navigate('Map')}
         />

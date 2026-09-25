@@ -8,8 +8,10 @@ import { Platform } from 'react-native';
  * 3. Default active machine LAN IP so physical Android devices on the same Wi-Fi can connect
  */
 const resolveApiBaseUrl = (): string => {
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL;
+  const envUrl = process.env.EXPO_PUBLIC_API_BASE_URL || process.env.EXPO_PUBLIC_API_URL;
+  if (envUrl) {
+    const cleanUrl = envUrl.trim().replace(/\/+$/, '');
+    return cleanUrl.endsWith('/api/v1') ? cleanUrl : `${cleanUrl}/api/v1`;
   }
 
   // Active LAN IP for physical Android testing on current Wi-Fi

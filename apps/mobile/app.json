@@ -27,10 +27,11 @@
       "package": "com.safecity.mobile",
       "versionCode": 1,
       "permissions": [
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE"
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [
@@ -47,6 +48,12 @@
           "cameraPermission": "SafeCity needs camera access to photograph safety incidents."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "a2745b04-ec25-4a45-ad94-aae417da0902"
+      }
+    },
+    "owner": "safecity25mx"
   }
 }

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
 import { MainTabParamList } from '../types/navigation';
 import { HomeScreen } from '../screens/home/HomeScreen';
+import { SafeRouteScreen } from '../screens/route/SafeRouteScreen';
 import { MapScreen } from '../screens/map/MapScreen';
 import { ReportScreen } from '../screens/report/ReportScreen';
 import { NotificationsScreen } from '../screens/notifications/NotificationsScreen';
@@ -29,7 +30,7 @@ export const MainTabNavigator: React.FC = () => {
           paddingTop: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '600',
         },
         tabBarIcon: ({ focused, color, size }) => {
@@ -39,12 +40,15 @@ export const MainTabNavigator: React.FC = () => {
             case 'Home':
               iconName = focused ? 'home' : 'home-outline';
               break;
+            case 'Routes':
+              iconName = focused ? 'navigate' : 'navigate-outline';
+              break;
             case 'Map':
               iconName = focused ? 'map' : 'map-outline';
               break;
             case 'Report':
               iconName = focused ? 'add-circle' : 'add-circle-outline';
-              size = 28; // make Report icon slightly larger
+              size = 26;
               break;
             case 'Notifications':
               iconName = focused ? 'notifications' : 'notifications-outline';
@@ -66,9 +70,14 @@ export const MainTabNavigator: React.FC = () => {
         options={{ tabBarLabel: 'Home' }}
       />
       <Tab.Screen
+        name="Routes"
+        component={SafeRouteScreen}
+        options={{ tabBarLabel: 'Safe Route' }}
+      />
+      <Tab.Screen
         name="Map"
         component={MapScreen}
-        options={{ tabBarLabel: 'Safety Map' }}
+        options={{ tabBarLabel: 'Map' }}
       />
       <Tab.Screen
         name="Report"

@@ -121,3 +121,52 @@ export interface PaginatedList<T> {
   limit: number;
   pages: number;
 }
+
+export interface RouteIncident {
+  id: string;
+  title: string;
+  description: string;
+  severity: SeverityLevel;
+  lat: number;
+  lng: number;
+  category_icon: string;
+  category_name: string;
+  distance_meters?: number;
+  is_verified?: boolean;
+  is_route_relevant?: boolean;
+  penalty_impact?: number;
+}
+
+export interface RouteRiskFactor {
+  icon: string;
+  name: string;
+  count: number;
+  total_penalty: number;
+}
+
+export interface RouteData {
+  label?: string;
+  geometry: string;
+  distance_m: number;
+  duration_s: number;
+  safety_score: number;
+  composite_score?: number;
+  route_risk_level: 'safe' | 'moderate' | 'unsafe';
+  relevant_incident_count?: number;
+  incident_free?: boolean;
+  explanation?: string;
+  incidents: RouteIncident[];
+  risk_factors?: RouteRiskFactor[];
+}
+
+export interface RoutePlanResponse {
+  routes: RouteData[];
+  recommended_route_idx: number;
+  shortest_route_idx: number;
+  safest_route_idx: number;
+  clean_route_idx: number | null;
+  avoidance_zone_count: number;
+  avoidance_filtered_count: number;
+  avoidance_warning: boolean;
+}
+

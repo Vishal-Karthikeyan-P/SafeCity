@@ -6,11 +6,13 @@ import { Colors } from '../../constants/colors';
 interface QuickActionsProps {
   onNavigateReport: () => void;
   onNavigateMap: () => void;
+  onNavigateRoutes: () => void;
 }
 
 export const QuickActions: React.FC<QuickActionsProps> = ({
   onNavigateReport,
   onNavigateMap,
+  onNavigateRoutes,
 }) => {
   const handleSosPress = () => {
     Alert.alert(
@@ -41,15 +43,27 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
       {/* Row of Action Buttons */}
       <View style={styles.row}>
         <TouchableOpacity
+          style={[styles.actionCard, { backgroundColor: '#eef2ff' }]}
+          onPress={onNavigateRoutes}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.actionIcon, { backgroundColor: Colors.primary }]}>
+            <Ionicons name="navigate" size={20} color="#ffffff" />
+          </View>
+          <Text style={styles.actionTitle}>Safe Route</Text>
+          <Text style={styles.actionDesc}>Plan risk-free path</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.actionCard, { backgroundColor: Colors.primaryLight }]}
           onPress={onNavigateReport}
           activeOpacity={0.7}
         >
-          <View style={[styles.actionIcon, { backgroundColor: Colors.primary }]}>
-            <Ionicons name="add-circle" size={22} color="#ffffff" />
+          <View style={[styles.actionIcon, { backgroundColor: '#4338ca' }]}>
+            <Ionicons name="add-circle" size={20} color="#ffffff" />
           </View>
-          <Text style={styles.actionTitle}>Report Incident</Text>
-          <Text style={styles.actionDesc}>Submit hazard or safety report</Text>
+          <Text style={styles.actionTitle}>Report</Text>
+          <Text style={styles.actionDesc}>Submit hazard</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -58,10 +72,10 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
           activeOpacity={0.7}
         >
           <View style={[styles.actionIcon, { backgroundColor: Colors.safe }]}>
-            <Ionicons name="map" size={22} color="#ffffff" />
+            <Ionicons name="map" size={20} color="#ffffff" />
           </View>
-          <Text style={styles.actionTitle}>Safety Map</Text>
-          <Text style={styles.actionDesc}>View live heatmap & routes</Text>
+          <Text style={styles.actionTitle}>Map</Text>
+          <Text style={styles.actionDesc}>Live heatmap</Text>
         </TouchableOpacity>
       </View>
     </View>
