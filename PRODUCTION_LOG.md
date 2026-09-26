@@ -4,7 +4,31 @@ All platform updates, new features, category expansions, database seeding enhanc
 
 ---
 
+## 📅 Release Version: 1.6.1 (September 2026) — Lightweight Health Check & Keep-Alive 🩺
+
+### 🌟 New Features & Enhancements
+
+1. **Lightweight Health Endpoint (`apps/backend/app/main.py`)**
+   - Exposed `GET /health` at root level returning HTTP 200 with minimal payload `{"status": "ok"}`.
+   - Operates purely in-memory: bypasses database connections, OSRM queries, and authentication middleware for lowest latency and resource cost.
+   - Tagged under `"Health"` with clear OpenAPI summary/docstrings.
+
+2. **Render Demo Availability / Keep-Alive Guidance**
+   - Documented external uptime / cron setup (e.g., UptimeRobot, cron-job.org) targeting `/health` at ~10-minute intervals to prevent Render free-tier sleep cycles during development and demos.
+   - Confirmed production Render start command compatibility (`python -m app.db.init_db && uvicorn app.main:app --host 0.0.0.0 --port $PORT`).
+
+### 🔧 Files Changed
+
+| File | Change |
+|---|---|
+| `apps/backend/app/main.py` | Updated `/health` endpoint to return minimal `{"status": "ok"}` without external dependencies |
+| `README.md` | Added Production Health & Availability documentation with keep-alive instructions |
+| `PRODUCTION_LOG.md` | This entry |
+
+---
+
 ## 📅 Release Version: 1.6.0 (September 2026) — Avoidance-Buffer Safe Routing 🚧
+
 
 ### 🌟 New Features & Enhancements
 

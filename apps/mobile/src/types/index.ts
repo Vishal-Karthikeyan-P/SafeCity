@@ -122,6 +122,43 @@ export interface PaginatedList<T> {
   pages: number;
 }
 
+export type SOSStatus = 'active' | 'resolved' | 'false_alarm';
+
+export interface EmergencyContact {
+  id: string;
+  user_id: string;
+  name: string;
+  phone: string;
+  contact_relation?: string | null;
+  created_at: string;
+  is_selected_for_sos?: boolean;
+}
+
+export interface EmergencyContactCreate {
+  name: string;
+  phone: string;
+  contact_relation?: string | null;
+}
+
+export interface EmergencyContactUpdate {
+  name?: string;
+  phone?: string;
+  contact_relation?: string | null;
+}
+
+export interface SOSRequest {
+  id: string;
+  user_id: string;
+  location_lat: number;
+  location_lng: number;
+  status: SOSStatus;
+  created_at: string;
+  resolved_at?: string | null;
+  audio_recording_url?: string | null;
+  video_recording_url?: string | null;
+}
+
+
 export interface RouteIncident {
   id: string;
   title: string;

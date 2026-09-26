@@ -12,7 +12,14 @@ export type MainTabParamList = {
   Profile: undefined;
 };
 
+export type MainStackParamList = {
+  MainTabs: undefined;
+  ActiveSOS: { autoTrigger?: boolean } | undefined;
+  EmergencyContacts: undefined;
+};
+
 export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;
 };
+

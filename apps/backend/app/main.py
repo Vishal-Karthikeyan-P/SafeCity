@@ -56,6 +56,11 @@ app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads"
 app.include_router(api_router, prefix="/api/v1")
 
 
-@app.get("/health")
+@app.get("/health", tags=["Health"], summary="Lightweight health check")
 async def health_check():
-    return {"status": "ok", "service": "SafeCity API", "version": "1.0.0"}
+    """
+    Lightweight health endpoint for external uptime / cron monitors.
+    Returns HTTP 200 OK without accessing database or external services.
+    """
+    return {"status": "ok"}
+

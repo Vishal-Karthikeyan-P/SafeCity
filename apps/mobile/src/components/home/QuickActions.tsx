@@ -7,23 +7,22 @@ interface QuickActionsProps {
   onNavigateReport: () => void;
   onNavigateMap: () => void;
   onNavigateRoutes: () => void;
+  onTriggerSOS: () => void;
 }
 
 export const QuickActions: React.FC<QuickActionsProps> = ({
   onNavigateReport,
   onNavigateMap,
   onNavigateRoutes,
+  onTriggerSOS,
 }) => {
   const handleSosPress = () => {
-    Alert.alert(
-      'Emergency SOS',
-      'Emergency SOS is currently a visual entry point in this phase. Full emergency dispatch services will be activated in the next update.',
-      [{ text: 'Understood', style: 'default' }]
-    );
+    onTriggerSOS();
   };
 
   return (
     <View style={styles.container}>
+
       {/* SOS Button - prominent card */}
       <TouchableOpacity
         style={styles.sosButton}

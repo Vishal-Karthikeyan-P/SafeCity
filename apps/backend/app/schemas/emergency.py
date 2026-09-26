@@ -31,6 +31,10 @@ class SOSRequestBase(BaseModel):
 class SOSRequestCreate(SOSRequestBase):
     pass
 
+class SOSLocationUpdate(SOSRequestBase):
+    pass
+
+
 class SOSRequestSchema(SOSRequestBase):
     id: str
     user_id: str

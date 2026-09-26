@@ -76,3 +76,14 @@ class EmergencyRepository:
         await self.db.commit()
         await self.db.refresh(sos)
         return sos
+
+    async def update_sos_location(self, sos: SOSRequest, lat: float, lng: float) -> SOSRequest:
+        from geoalchemy2.shape import from_shape
+        from shapely.geometry import Point
+        sos.location_lat = lat
+        sos.location_lng = lng
+        sos.location_geom = from_shape(Point(lng, lat), srid=4326)
+        await self.db.commit()
+        await self.db.refresh(sos)
+        return sos
+

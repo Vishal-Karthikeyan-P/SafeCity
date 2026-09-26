@@ -17,11 +17,15 @@ import { Card } from '../../components/common/Card';
 import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { MainStackParamList } from '../../types/navigation';
 import { UsersApi, UpdateProfilePayload } from '../../api/users';
 import { useAuthStore } from '../../store/authStore';
 import { Colors } from '../../constants/colors';
 
 export const ProfileScreen: React.FC = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const queryClient = useQueryClient();
   const { user: authUser, logout, updateUser } = useAuthStore();
 
@@ -202,7 +206,16 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Emergency Contact */}
         <Card style={styles.infoCard}>
-          <Text style={styles.sectionHeading}>Emergency Contact</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <Text style={styles.sectionHeading}>Emergency Contacts</Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('EmergencyContacts')}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.primary }}>Manage</Text>
+              <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
           <View style={styles.infoRow}>
             <Ionicons name="shield-checkmark-outline" size={18} color={Colors.safe} />
             <View style={styles.infoTextContainer}>
@@ -217,6 +230,24 @@ export const ProfileScreen: React.FC = () => {
               ) : null}
             </View>
           </View>
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: Colors.primaryLight,
+              paddingVertical: 10,
+              borderRadius: 10,
+              marginTop: 12,
+              gap: 6,
+            }}
+            onPress={() => navigation.navigate('EmergencyContacts')}
+          >
+            <Ionicons name="people-outline" size={16} color={Colors.primaryDark} />
+            <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.primaryDark }}>
+              Manage Up to 5 Contacts & SOS Alerts
+            </Text>
+          </TouchableOpacity>
         </Card>
 
         {/* Sign Out Button */}

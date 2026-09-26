@@ -579,3 +579,17 @@ Before the candidate pool is deduplicated and scored, SafeCity applies an **avoi
 | `avoidance_zone_count` | `int` | Number of HIGH/CRITICAL incidents that created avoidance zones |
 | `avoidance_filtered_count` | `int` | Number of candidate routes rejected by the avoidance filter |
 | `avoidance_warning` | `bool` | `true` when all candidates were filtered and the fallback was used |
+
+---
+
+## 🩺 Production Health & Availability (Render Keep-Alive)
+
+- **Production Health Endpoint**: `GET /health` (e.g., `https://safecity-backend.onrender.com/health`)
+  - Returns HTTP 200 `{"status": "ok"}`.
+  - Lightweight and fast: executes without touching the database, calling OSRM, or requiring authentication.
+- **External Uptime / Cron Service Configuration**:
+  - Render free-tier instances sleep after 15 minutes of inactivity.
+  - To prevent sleep mode and cold-start delays during development and live demonstrations, configure an external uptime or cron service (e.g., [UptimeRobot](https://uptimerobot.com), [cron-job.org](https://cron-job.org)) to ping the `/health` endpoint approximately every **10 minutes**.
+- **Availability Disclaimer**:
+  - This keep-alive strategy is strictly for development and demo availability and does not guarantee production-grade uptime or SLA.
+
