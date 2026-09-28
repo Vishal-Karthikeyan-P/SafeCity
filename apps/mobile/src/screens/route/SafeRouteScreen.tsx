@@ -7,8 +7,8 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
@@ -429,11 +429,12 @@ export const SafeRouteScreen: React.FC = () => {
   <script>
     var map = L.map('map', {
       zoomControl: false,
-      attributionControl: false
+      attributionControl: true
     }).setView([${startLat}, ${startLng}], 13);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
     // Click handler for selecting points
@@ -573,10 +574,12 @@ export const SafeRouteScreen: React.FC = () => {
     selectedRoute?.incidents,
   ]);
 
+  const insets = useSafeAreaInsets();
+
   return (
     <View style={styles.container}>
       {/* ── Top Floating Location Card ────────────────────────────────────── */}
-      <View style={styles.topCard}>
+      <View style={[styles.topCard, { paddingTop: Math.max(insets.top, 12) }]}>
         {/* Start Point Row */}
         <View style={styles.locationRow}>
           <View style={[styles.dot, { backgroundColor: Colors.safe }]} />
@@ -976,7 +979,7 @@ const styles = StyleSheet.create({
   topCard: {
     backgroundColor: Colors.surface,
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 12 : 16,
+    paddingTop: 12,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,

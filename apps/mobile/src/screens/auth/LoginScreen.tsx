@@ -120,18 +120,6 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             style={styles.submitButton}
           />
 
-          {/* Quick Demo Credentials Helper */}
-          <View style={styles.demoBox}>
-            <Text style={styles.demoTitle}>Default Demo Account:</Text>
-            <TouchableOpacity
-              onPress={() => {
-                setEmail('admin@safecity.com');
-                setPassword('AdminPass123!');
-              }}
-            >
-              <Text style={styles.demoLink}>Use admin@safecity.com / AdminPass123!</Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
         {/* Footer Link */}
@@ -230,23 +218,6 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     marginTop: 6,
-  },
-  demoBox: {
-    marginTop: 16,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-    alignItems: 'center',
-  },
-  demoTitle: {
-    fontSize: 11,
-    color: Colors.textMuted,
-  },
-  demoLink: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.primary,
-    marginTop: 2,
   },
   footer: {
     flexDirection: 'row',

@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Modal,
   ScrollView,
-  Platform,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
@@ -231,12 +230,13 @@ export const MapScreen: React.FC = () => {
   <script>
     var map = L.map('map', {
       zoomControl: true,
-      attributionControl: false
+      attributionControl: true
     }).setView([${centerLat}, ${centerLng}], 14);
 
-    // CartoDB Voyager Tile layer (consistent with SafeCity web)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19
+    // OpenStreetMap tile layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
     // User Location Marker

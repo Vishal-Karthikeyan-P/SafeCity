@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, StyleProp, ViewStyle } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 
 interface HeaderProps {
@@ -20,8 +21,9 @@ export const Header: React.FC<HeaderProps> = ({
   rightComponent,
   style,
 }) => {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.header, style]}>
+    <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }, style]}>
       <View style={styles.titleContainer}>
         <Text style={styles.title}>{title}</Text>
         {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}

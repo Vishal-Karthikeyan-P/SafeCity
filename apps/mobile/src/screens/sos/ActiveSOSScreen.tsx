@@ -9,8 +9,8 @@ import {
   ActivityIndicator,
   Animated,
   Linking,
-  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
@@ -211,11 +211,12 @@ export const ActiveSOSScreen: React.FC = () => {
   <script>
     var map = L.map('map', {
       zoomControl: false,
-      attributionControl: false
+      attributionControl: true
     }).setView([${currentLat}, ${currentLng}], 15);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
     var sosIcon = L.divIcon({
@@ -275,10 +276,12 @@ export const ActiveSOSScreen: React.FC = () => {
     });
   };
 
+  const insets = useSafeAreaInsets();
+
   return (
     <View style={styles.container}>
       {/* ── Active Emergency Top Bar ──────────────────────────────────────── */}
-      <View style={styles.topHeader}>
+      <View style={[styles.topHeader, { paddingTop: Math.max(insets.top, 16) }]}>
         <Animated.View style={[styles.beaconIcon, { transform: [{ scale: pulseAnim }] }]}>
           <Ionicons name="warning" size={26} color="#ffffff" />
         </Animated.View>
@@ -482,7 +485,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#b91c1c',
     paddingHorizontal: 18,
-    paddingTop: Platform.OS === 'ios' ? 52 : 24,
+    paddingTop: 16,
     paddingBottom: 16,
     gap: 12,
   },

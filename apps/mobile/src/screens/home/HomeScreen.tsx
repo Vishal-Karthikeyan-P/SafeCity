@@ -7,6 +7,7 @@ import {
   RefreshControl,
   TouchableOpacity,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
@@ -95,10 +96,12 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     rootNavigation.navigate('ActiveSOS');
   };
 
+  const insets = useSafeAreaInsets();
+
   return (
     <View style={styles.container}>
       {/* Top Bar / Header */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 16) }]}>
         <View style={styles.userGreeting}>
           <Text style={styles.greetingPrefix}>Hello,</Text>
           <Text style={styles.userName}>{user?.full_name || 'Citizen'}</Text>
