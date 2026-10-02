@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Flame, MapPin, SlidersHorizontal, X, ShieldCheck, ShieldAlert,
@@ -269,6 +269,10 @@ export function MapPage() {
     clickedLocation?.lng ?? null,
     1.0
   )
+  useEffect(() => {
+    const t = setTimeout(() => window.dispatchEvent(new Event('resize')), 50)
+    return () => clearTimeout(t)
+  }, [showSidebar, showFilters])
 
   const locateMe = () => {
     navigator.geolocation.getCurrentPosition(
@@ -277,7 +281,7 @@ export function MapPage() {
         setUserLocation(coords)
         setClickedLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
       },
-      () => {},
+      () => { },
     )
   }
 
@@ -307,11 +311,10 @@ export function MapPage() {
               <button
                 key={mode}
                 onClick={() => setViewMode(mode)}
-                className={`px-3 py-1 text-xs font-semibold rounded-md capitalize transition-all ${
-                  viewMode === mode
+                className={`px-3 py-1 text-xs font-semibold rounded-md capitalize transition-all ${viewMode === mode
                     ? 'bg-primary text-primary-foreground shadow'
                     : 'text-muted-foreground hover:text-foreground'
-                }`}
+                  }`}
               >
                 {mode === 'markers' && <><MapPin className="w-3.5 h-3.5 inline mr-1" />Markers</>}
                 {mode === 'heatmap' && <><Flame className="w-3.5 h-3.5 inline mr-1" />Heatmap</>}
@@ -341,11 +344,10 @@ export function MapPage() {
           <button
             onClick={() => setShowUnverified((v) => !v)}
             title={showUnverified ? 'Hide unverified incidents' : 'Show unverified incidents'}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-              showUnverified
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${showUnverified
                 ? 'bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-400'
                 : 'border-input text-muted-foreground hover:text-foreground'
-            }`}
+              }`}
           >
             {showUnverified ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
             Unverified
@@ -543,8 +545,8 @@ export function MapPage() {
               </div>
 
               <div className="flex flex-col gap-2 pt-1">
-                <Button 
-                  size="sm" 
+                <Button
+                  size="sm"
                   className="w-full justify-start text-xs font-medium"
                   onClick={() => navigate(`/incidents/new?lat=${clickedLocation.lat}&lng=${clickedLocation.lng}`)}
                 >

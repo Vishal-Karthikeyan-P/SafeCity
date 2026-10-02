@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet'
 import * as polyline from '@mapbox/polyline'
@@ -8,6 +8,15 @@ import { toTitleCase } from '@/lib/utils'
 
 // Helper to get global L or fallback (dynamic evaluation to ensure CDN extensions are ready)
 const getL = () => (typeof window !== 'undefined' ? (window as any).L : null) || L
+
+let heatPluginPromise: Promise<unknown> | null = null
+const ensureHeatPlugin = () => {
+  if (!heatPluginPromise) {
+    if (typeof window !== 'undefined' && !(window as any).L) (window as any).L = L
+    heatPluginPromise = getL().heatLayer ? Promise.resolve() : import('leaflet.heat')
+  }
+  return heatPluginPromise
+}
 
 // Fix Leaflet default marker icon in Vite dynamically
 const initMarkerIcon = () => {
@@ -149,7 +158,6 @@ export function IncidentMap({
   const mapRef = useRef<L.Map | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const clusterGroupRef = useRef<any>(null)
-  const heatLayerRef = useRef<any>(null)
   const routeLayerRef = useRef<any>(null)
   const onLocationSelectRef = useRef(onLocationSelect)
 
@@ -350,42 +358,33 @@ export function IncidentMap({
   }, [selectedLocation])
 
   // Heatmap Layer
+  const [heatReady, setHeatReady] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    ensureHeatPlugin()
+      .then(() => alive && setHeatReady(true))
+      .catch((e) => console.error('leaflet.heat failed to load', e))
+    return () => { alive = false }
+  }, [])
+
+  // Heatmap Layer
   useEffect(() => {
     const map = mapRef.current
-    if (!map) return
-
-    if (heatLayerRef.current) {
-      map.removeLayer(heatLayerRef.current)
-      heatLayerRef.current = null
-    }
+    if (!map || !heatReady || !heatmapData?.length) return
 
     const Leaflet = getL()
-    const heatFactory = Leaflet.heatLayer
+    map.invalidateSize()
+    const pts = heatmapData.map((p) => [p.lat, p.lng, Math.max(0.5, p.weight || 1)])
+    const max = pts.reduce((m, p) => Math.max(m, p[2]), 1)
 
-    if (heatmapData && heatmapData.length > 0 && typeof heatFactory === 'function') {
-      const heatPoints = heatmapData.map((p) => [p.lat, p.lng, Math.max(0.5, p.weight || 1)])
-      heatLayerRef.current = heatFactory(heatPoints, {
-        radius: 35,
-        blur: 20,
-        minOpacity: 0.4,
-        maxZoom: 18,
-        gradient: {
-          0.2: '#3b82f6', // blue
-          0.4: '#22c55e', // green
-          0.6: '#eab308', // yellow
-          0.8: '#f97316', // orange
-          1.0: '#ef4444', // red
-        },
-      }).addTo(map)
-    }
+    const layer = Leaflet.heatLayer(pts, {
+      radius: 35, blur: 20, minOpacity: 0.4, maxZoom: 18, max,
+      gradient: { 0.2: '#3b82f6', 0.4: '#22c55e', 0.6: '#eab308', 0.8: '#f97316', 1.0: '#ef4444' },
+    }).addTo(map)
 
-    return () => {
-      if (heatLayerRef.current && map) {
-        map.removeLayer(heatLayerRef.current)
-        heatLayerRef.current = null
-      }
-    }
-  }, [heatmapData])
+    return () => { map.removeLayer(layer) }
+  }, [heatmapData, heatReady])
 
   // Route Layer — renders all route alternatives simultaneously
   useEffect(() => {
