@@ -121,6 +121,9 @@
   .badge-rejected {
     @apply bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400;
   }
+  .badge-resolved_unverified {
+    @apply bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700/50;
+  }
   .badge-resolved {
     @apply bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400;
   }

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from '@/lib/api'
-import type { Incident, IncidentFilters, PaginatedResponse } from '@/types'
+import type { Incident, IncidentFilters, PaginatedResponse, ResolutionRequest, IncidentStatusHistory } from '@/types'
 
 // ── List incidents ─────────────────────────────────────────────
 export function useIncidents(filters: Partial<IncidentFilters> = {}) {
@@ -175,3 +175,108 @@ export function useDeleteIncident() {
     },
   })
 }
+
+// ── Upload Resolution Evidence ───────────────────────────────────
+export function useUploadEvidence() {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await api.post('/incidents/upload-evidence', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return res.data as { url: string; filename: string }
+    },
+  })
+}
+
+// ── Resolution Requests ──────────────────────────────────────────
+export function useResolutionRequests(incidentId: string) {
+  return useQuery({
+    queryKey: ['resolution-requests', incidentId],
+    queryFn: async () => {
+      const res = await api.get(`/incidents/${incidentId}/resolution-requests`)
+      return res.data as ResolutionRequest[]
+    },
+    enabled: !!incidentId,
+  })
+}
+
+export function useCreateResolutionRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      incidentId,
+      explanation,
+      evidence_url,
+    }: {
+      incidentId: string
+      explanation: string
+      evidence_url?: string
+    }) => {
+      const res = await api.post(`/incidents/${incidentId}/resolution-requests`, {
+        explanation,
+        evidence_url,
+      })
+      return res.data as ResolutionRequest
+    },
+    onSuccess: (_, { incidentId }) => {
+      qc.invalidateQueries({ queryKey: ['incident', incidentId] })
+      qc.invalidateQueries({ queryKey: ['resolution-requests', incidentId] })
+      qc.invalidateQueries({ queryKey: ['incidents'] })
+      qc.invalidateQueries({ queryKey: ['admin-incidents'] })
+      toast.success('Resolution request submitted successfully!')
+    },
+  })
+}
+
+export function useReviewResolutionRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      incidentId,
+      requestId,
+      action,
+      rejection_reason,
+    }: {
+      incidentId: string
+      requestId: string
+      action: 'approve' | 'reject'
+      rejection_reason?: string
+    }) => {
+      const res = await api.post(
+        `/incidents/${incidentId}/resolution-requests/${requestId}/review`,
+        {
+          action,
+          rejection_reason,
+        }
+      )
+      return res.data as ResolutionRequest
+    },
+    onSuccess: (data, { incidentId }) => {
+      qc.invalidateQueries({ queryKey: ['incident', incidentId] })
+      qc.invalidateQueries({ queryKey: ['resolution-requests', incidentId] })
+      qc.invalidateQueries({ queryKey: ['status-history', incidentId] })
+      qc.invalidateQueries({ queryKey: ['incidents'] })
+      qc.invalidateQueries({ queryKey: ['admin-incidents'] })
+      toast.success(
+        data.status === 'approved'
+          ? 'Resolution approved! Incident is now RESOLVED (UNVERIFIED) pending admin review.'
+          : 'Resolution request rejected.'
+      )
+    },
+  })
+}
+
+// ── Status History ───────────────────────────────────────────────
+export function useStatusHistory(incidentId: string) {
+  return useQuery({
+    queryKey: ['status-history', incidentId],
+    queryFn: async () => {
+      const res = await api.get(`/incidents/${incidentId}/status-history`)
+      return res.data as IncidentStatusHistory[]
+    },
+    enabled: !!incidentId,
+  })
+}
+

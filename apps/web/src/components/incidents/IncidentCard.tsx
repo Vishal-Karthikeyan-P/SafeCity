@@ -20,7 +20,7 @@ const severityVariant: Record<SeverityLevel, 'low' | 'medium' | 'high' | 'critic
 
 const statusVariant: Record<IncidentStatus, any> = {
   pending: 'pending', under_review: 'under_review', approved: 'approved',
-  rejected: 'rejected', resolved: 'resolved',
+  rejected: 'rejected', resolved_unverified: 'resolved_unverified', resolved: 'resolved',
 }
 
 export function IncidentCard({ incident, compact = false }: IncidentCardProps) {
@@ -57,7 +57,9 @@ export function IncidentCard({ incident, compact = false }: IncidentCardProps) {
             </Badge>
           )}
           <Badge variant={statusVariant[incident.status]} className={compact ? '' : 'ml-auto'}>
-            {toTitleCase(incident.status)}
+            {incident.status === 'resolved_unverified'
+              ? 'Resolved (Unverified)'
+              : toTitleCase(incident.status)}
           </Badge>
         </div>
 

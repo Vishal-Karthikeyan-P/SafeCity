@@ -1,6 +1,39 @@
 export type UserRole = 'citizen' | 'admin';
 export type SeverityLevel = 'low' | 'medium' | 'high' | 'critical';
-export type IncidentStatus = 'pending' | 'under_review' | 'approved' | 'rejected' | 'resolved';
+export type IncidentStatus =
+  | 'pending'
+  | 'under_review'
+  | 'approved'
+  | 'rejected'
+  | 'resolved_unverified'
+  | 'resolved';
+export type ResolutionStatus = 'pending' | 'approved' | 'rejected';
+
+export interface ResolutionRequest {
+  id: string;
+  incident_id: string;
+  requester_id?: string | null;
+  requester?: User | null;
+  explanation: string;
+  evidence_url?: string | null;
+  status: ResolutionStatus;
+  reviewed_by_id?: string | null;
+  reviewed_by?: User | null;
+  reviewed_at?: string | null;
+  rejection_reason?: string | null;
+  created_at: string;
+}
+
+export interface IncidentStatusHistory {
+  id: string;
+  incident_id: string;
+  from_status: string;
+  to_status: string;
+  changed_by_id?: string | null;
+  changed_by?: User | null;
+  reason?: string | null;
+  created_at: string;
+}
 
 export interface UserProfile {
   id: string;

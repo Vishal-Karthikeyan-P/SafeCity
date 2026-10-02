@@ -57,6 +57,8 @@ export const Badge: React.FC<BadgeProps> = ({
           return { bg: '#e0f2fe', text: '#0369a1' };
         case 'rejected':
           return { bg: Colors.criticalBg, text: Colors.criticalText };
+        case 'resolved_unverified':
+          return { bg: '#fef3c7', text: '#b45309' };
         case 'resolved':
           return { bg: '#f3e8ff', text: '#7e22ce' };
         case 'pending':
@@ -73,7 +75,7 @@ export const Badge: React.FC<BadgeProps> = ({
   return (
     <View style={[styles.badge, { backgroundColor: bg }, style]}>
       <Text style={[styles.text, { color: text }, textStyle]}>
-        {label.toUpperCase()}
+        {(label ?? '').toUpperCase()}
       </Text>
     </View>
   );

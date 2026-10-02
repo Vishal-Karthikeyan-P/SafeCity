@@ -9,7 +9,10 @@ from sqlalchemy import and_, case, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.incident import Incident, IncidentCategory, IncidentImage, IncidentStatus, SeverityLevel
+from app.models.incident import (
+    Incident, IncidentCategory, IncidentImage, IncidentStatus, SeverityLevel,
+    ResolutionRequest, ResolutionStatus, IncidentStatusHistory
+)
 
 
 class IncidentRepository:
@@ -25,6 +28,9 @@ class IncidentRepository:
                 selectinload(Incident.category),
                 selectinload(Incident.images),
                 selectinload(Incident.reporter),
+                selectinload(Incident.resolution_requests).selectinload(ResolutionRequest.requester),
+                selectinload(Incident.resolution_requests).selectinload(ResolutionRequest.reviewed_by),
+                selectinload(Incident.status_history).selectinload(IncidentStatusHistory.changed_by),
             )
             .where(Incident.deleted_at.is_(None))
         )
@@ -117,13 +123,110 @@ class IncidentRepository:
         return await self.get_by_id(incident.id)
 
     async def update_status(
-        self, incident: Incident, status: str, admin_note: Optional[str] = None
+        self,
+        incident: Incident,
+        status: IncidentStatus,
+        admin_note: Optional[str] = None,
+        changed_by_id: Optional[str] = None,
     ) -> Incident:
+        old_status = incident.status.value if hasattr(incident.status, "value") else str(incident.status)
+        new_status = status.value if hasattr(status, "value") else str(status)
         incident.status = status
         if admin_note:
             incident.admin_note = admin_note
+        await self.add_status_history(
+            incident_id=incident.id,
+            from_status=old_status,
+            to_status=new_status,
+            changed_by_id=changed_by_id,
+            reason=admin_note,
+        )
         await self.db.flush()
         return await self.get_by_id(incident.id)
+
+    async def add_status_history(
+        self,
+        incident_id: str,
+        from_status: str,
+        to_status: str,
+        changed_by_id: Optional[str] = None,
+        reason: Optional[str] = None,
+    ) -> IncidentStatusHistory:
+        history = IncidentStatusHistory(
+            incident_id=incident_id,
+            from_status=from_status,
+            to_status=to_status,
+            changed_by_id=changed_by_id,
+            reason=reason,
+        )
+        self.db.add(history)
+        await self.db.flush()
+        return history
+
+    async def get_status_history(self, incident_id: str) -> List[IncidentStatusHistory]:
+        result = await self.db.execute(
+            select(IncidentStatusHistory)
+            .options(selectinload(IncidentStatusHistory.changed_by))
+            .where(IncidentStatusHistory.incident_id == incident_id)
+            .order_by(IncidentStatusHistory.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def create_resolution_request(
+        self,
+        incident_id: str,
+        requester_id: Optional[str],
+        explanation: str,
+        evidence_url: Optional[str] = None,
+        status: ResolutionStatus = ResolutionStatus.PENDING,
+        reviewed_by_id: Optional[str] = None,
+        reviewed_at: Optional[datetime] = None,
+        rejection_reason: Optional[str] = None,
+    ) -> ResolutionRequest:
+        req = ResolutionRequest(
+            incident_id=incident_id,
+            requester_id=requester_id,
+            explanation=explanation,
+            evidence_url=evidence_url,
+            status=status,
+            reviewed_by_id=reviewed_by_id,
+            reviewed_at=reviewed_at,
+            rejection_reason=rejection_reason,
+        )
+        self.db.add(req)
+        await self.db.flush()
+        return await self.get_resolution_request_by_id(req.id)
+
+    async def get_resolution_request_by_id(self, request_id: str) -> Optional[ResolutionRequest]:
+        result = await self.db.execute(
+            select(ResolutionRequest)
+            .options(
+                selectinload(ResolutionRequest.requester),
+                selectinload(ResolutionRequest.reviewed_by),
+                selectinload(ResolutionRequest.incident),
+            )
+            .where(ResolutionRequest.id == request_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_resolution_requests(self, incident_id: str) -> List[ResolutionRequest]:
+        result = await self.db.execute(
+            select(ResolutionRequest)
+            .options(
+                selectinload(ResolutionRequest.requester),
+                selectinload(ResolutionRequest.reviewed_by),
+            )
+            .where(ResolutionRequest.incident_id == incident_id)
+            .order_by(ResolutionRequest.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def update_resolution_request(self, req: ResolutionRequest, **kwargs) -> ResolutionRequest:
+        for key, value in kwargs.items():
+            if hasattr(req, key):
+                setattr(req, key, value)
+        await self.db.flush()
+        return await self.get_resolution_request_by_id(req.id)
 
     async def soft_delete(self, incident: Incident) -> None:
         incident.deleted_at = datetime.now(timezone.utc)
@@ -191,9 +294,10 @@ class IncidentRepository:
                 (Incident.status == IncidentStatus.PENDING, 1),
                 (Incident.status == IncidentStatus.UNDER_REVIEW, 2),
                 (Incident.status == IncidentStatus.APPROVED, 3),
-                (Incident.status == IncidentStatus.RESOLVED, 4),
-                (Incident.status == IncidentStatus.REJECTED, 5),
-                else_=6
+                (Incident.status == IncidentStatus.RESOLVED_UNVERIFIED, 4),
+                (Incident.status == IncidentStatus.RESOLVED, 5),
+                (Incident.status == IncidentStatus.REJECTED, 6),
+                else_=7
             )
             query = query.order_by(status_order, Incident.created_at.desc())
         elif sb in ["date_desc", "date", "created_at"]:

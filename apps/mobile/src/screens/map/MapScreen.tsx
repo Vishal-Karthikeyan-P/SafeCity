@@ -336,7 +336,7 @@ export const MapScreen: React.FC = () => {
               <Text style={styles.categoryIcon}>{item.category?.icon || '📍'}</Text>
               <Text style={styles.categoryName}>{item.category?.name || 'General'}</Text>
             </View>
-            <Badge label={item.severity} variant="severity" severity={item.severity} />
+            <Badge label={item.severity ?? 'unknown'} variant="severity" severity={item.severity} />
           </View>
 
           <Text style={styles.incidentTitle}>{item.title}</Text>
@@ -656,12 +656,12 @@ export const MapScreen: React.FC = () => {
 
                   <View style={styles.modalBadgesRow}>
                     <Badge
-                      label={selectedIncident.severity}
+                      label={selectedIncident.severity ?? 'unknown'}
                       variant="severity"
                       severity={selectedIncident.severity}
                     />
                     <Badge
-                      label={selectedIncident.status.toUpperCase()}
+                      label={(selectedIncident.status ?? 'unknown').toUpperCase()}
                       variant="status"
                       status={selectedIncident.status}
                     />

@@ -59,6 +59,39 @@ class ReporterSummary(BaseModel):
         from_attributes = True
 
 
+class ResolutionRequestSchema(BaseModel):
+    id: str
+    incident_id: str
+    requester_id: Optional[str] = None
+    requester: Optional[ReporterSummary] = None
+    status: str
+    explanation: str
+    evidence_url: Optional[str] = None
+    rejection_reason: Optional[str] = None
+    reviewed_by_id: Optional[str] = None
+    reviewed_by: Optional[ReporterSummary] = None
+    reviewed_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class IncidentStatusHistorySchema(BaseModel):
+    id: str
+    incident_id: str
+    from_status: str
+    to_status: str
+    changed_by_id: Optional[str] = None
+    changed_by: Optional[ReporterSummary] = None
+    reason: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class IncidentSchema(BaseModel):
     id: str
     title: str
@@ -73,6 +106,8 @@ class IncidentSchema(BaseModel):
     location_lng: float
     admin_note: Optional[str] = None
     images: List[IncidentImageSchema] = []
+    resolution_requests: List[ResolutionRequestSchema] = []
+    status_history: List[IncidentStatusHistorySchema] = []
     reporter_id: Optional[str] = None
     reporter: Optional[ReporterSummary] = None
     created_at: datetime
@@ -122,9 +157,44 @@ class CreateIncidentRequest(BaseModel):
         return v
 
 
+class ResolutionRequestCreate(BaseModel):
+    explanation: str
+    evidence_url: Optional[str] = None
+
+    @field_validator("explanation")
+    @classmethod
+    def validate_explanation(cls, v: str) -> str:
+        if len(v.strip()) < 5:
+            raise ValueError("Explanation must be at least 5 characters")
+        return v.strip()
+
+
+class ResolutionRequestReview(BaseModel):
+    action: str  # "approve" or "reject"
+    rejection_reason: Optional[str] = None
+
+    @field_validator("action")
+    @classmethod
+    def validate_action(cls, v: str) -> str:
+        clean = v.strip().lower()
+        if clean not in ("approve", "reject"):
+            raise ValueError("Action must be 'approve' or 'reject'")
+        return clean
+
+
 class UpdateIncidentStatusRequest(BaseModel):
     status: IncidentStatus
     admin_note: Optional[str] = None
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def parse_status(cls, v: any) -> any:
+        if isinstance(v, str):
+            clean = v.strip().lower()
+            for member in IncidentStatus:
+                if member.value == clean or member.name.lower() == clean:
+                    return member
+        return v
 
 
 class IncidentListResponse(BaseModel):
@@ -148,3 +218,4 @@ class IncidentFilters(BaseModel):
     radius_km: Optional[float] = None
     page: int = 1
     limit: int = 10
+

@@ -250,6 +250,44 @@ export const ProfileScreen: React.FC = () => {
           </TouchableOpacity>
         </Card>
 
+        {/* My Reports Quick-Link */}
+        <Card style={styles.infoCard}>
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingVertical: 4,
+            }}
+            onPress={() => navigation.navigate('MyIncidents')}
+            activeOpacity={0.7}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  backgroundColor: Colors.primaryLight,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Ionicons name="document-text-outline" size={18} color={Colors.primaryDark} />
+              </View>
+              <View>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.textPrimary }}>
+                  My Reports
+                </Text>
+                <Text style={{ fontSize: 12, color: Colors.textMuted, marginTop: 1 }}>
+                  View your submitted incidents
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+          </TouchableOpacity>
+        </Card>
+
         {/* Sign Out Button */}
         <Button
           title="Sign Out"

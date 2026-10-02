@@ -9,14 +9,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent } from '@/components/ui/card'
 import { IncidentMap } from '@/components/map/IncidentMap'
-import { useCreateIncident, useUploadImages, useCategories } from '@/api/incidents'
+import { useCreateIncident, useUploadImages } from '@/api/incidents'
+import { SearchableCategorySelect } from '@/components/incidents/SearchableCategorySelect'
 import { reportIncidentSchema, type ReportIncidentValues } from '@/lib/schemas'
 import { toast } from 'sonner'
 
 export function ReportIncidentPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { data: categories = [] } = useCategories()
   const { mutateAsync: createIncident, isPending: isCreating } = useCreateIncident()
   const { mutateAsync: uploadImages, isPending: isUploading } = useUploadImages()
 
@@ -131,17 +131,13 @@ export function ReportIncidentPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1.5" htmlFor="category_id">Category</label>
-                <Select onValueChange={(v) => setValue('category_id', v)}>
-                  <SelectTrigger id="category_id" className={errors.category_id ? 'border-destructive' : ''}>
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((c: any) => (
-                      <SelectItem key={c.id} value={c.id}>{c.icon} {c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.category_id && <p className="text-xs text-destructive mt-1">{errors.category_id.message}</p>}
+                <SearchableCategorySelect
+                  id="category_id"
+                  value={watch('category_id')}
+                  onChange={(val) => setValue('category_id', val || '', { shouldValidate: true })}
+                  placeholder="Search and select category..."
+                  error={errors.category_id?.message}
+                />
               </div>
 
               <div>

@@ -44,7 +44,7 @@ export const RecentAlertsCard: React.FC<RecentAlertsCardProps> = ({
                   {alert.title}
                 </Text>
                 <Badge
-                  label={alert.severity}
+                  label={alert.severity ?? 'unknown'}
                   variant="severity"
                   severity={alert.severity}
                 />

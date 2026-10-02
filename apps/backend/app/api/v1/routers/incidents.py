@@ -17,6 +17,10 @@ from app.schemas.incident import (
     IncidentListResponse,
     IncidentSchema,
     IncidentFilters,
+    ResolutionRequestCreate,
+    ResolutionRequestReview,
+    ResolutionRequestSchema,
+    IncidentStatusHistorySchema,
 )
 from app.services.incident_service import IncidentService
 
@@ -145,3 +149,88 @@ async def upload_images(
     """Upload evidence images for an incident."""
     service = IncidentService(db)
     return await service.upload_images(incident_id, files, current_user)
+
+
+@router.post("/upload-evidence")
+async def upload_evidence(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload resolution evidence image (returns URL)."""
+    service = IncidentService(db)
+    return await service.upload_evidence(file, current_user)
+
+
+@router.post("/{incident_id}/resolution-requests", response_model=ResolutionRequestSchema, status_code=201)
+async def create_resolution_request(
+    incident_id: str,
+    data: ResolutionRequestCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Submit a resolution request with explanation and evidence for an incident."""
+    service = IncidentService(db)
+    return await service.create_resolution_request(incident_id, data, current_user)
+
+
+@router.get("/{incident_id}/resolution-requests", response_model=List[ResolutionRequestSchema])
+async def list_resolution_requests(
+    incident_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """List all resolution requests for an incident."""
+    service = IncidentService(db)
+    return await service.get_resolution_requests(incident_id)
+
+
+@router.post("/{incident_id}/resolution-requests/{request_id}/review", response_model=ResolutionRequestSchema)
+async def review_resolution_request(
+    incident_id: str,
+    request_id: str,
+    data: ResolutionRequestReview,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Incident creator reviews resolution request (Approve or Reject)."""
+    service = IncidentService(db)
+    return await service.review_resolution_request(incident_id, request_id, data, current_user)
+
+
+@router.post("/{incident_id}/resolution-requests/{request_id}/approve", response_model=ResolutionRequestSchema)
+async def approve_resolution_request(
+    incident_id: str,
+    request_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Incident creator approves resolution request (moves incident to RESOLVED_UNVERIFIED)."""
+    service = IncidentService(db)
+    review_data = ResolutionRequestReview(action="approve")
+    return await service.review_resolution_request(incident_id, request_id, review_data, current_user)
+
+
+@router.post("/{incident_id}/resolution-requests/{request_id}/reject", response_model=ResolutionRequestSchema)
+async def reject_resolution_request(
+    incident_id: str,
+    request_id: str,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Incident creator rejects resolution request with reason (keeps previous status)."""
+    service = IncidentService(db)
+    rejection_reason = data.get("rejection_reason") or data.get("reason", "")
+    review_data = ResolutionRequestReview(action="reject", rejection_reason=rejection_reason)
+    return await service.review_resolution_request(incident_id, request_id, review_data, current_user)
+
+
+@router.get("/{incident_id}/status-history", response_model=List[IncidentStatusHistorySchema])
+async def get_status_history(
+    incident_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get status change history and audit trail for an incident."""
+    service = IncidentService(db)
+    return await service.get_status_history(incident_id)
+

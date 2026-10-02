@@ -4,6 +4,7 @@ Incident Service — business logic for incident reporting, management, uploads
 import math
 import os
 import uuid
+from datetime import datetime, timezone
 from typing import List, Optional
 
 import aiofiles
@@ -11,14 +12,16 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.models.incident import Incident, IncidentStatus
+from app.models.incident import Incident, IncidentStatus, ResolutionStatus
 from app.models.user import User, UserRole
 from app.models.notification import NotificationType
 from app.repositories.incident_repository import IncidentRepository
 from app.repositories.notification_repository import NotificationRepository
 from app.schemas.incident import (
     CreateIncidentRequest, IncidentSchema, IncidentListResponse,
-    UpdateIncidentStatusRequest, IncidentFilters
+    UpdateIncidentStatusRequest, IncidentFilters,
+    ResolutionRequestCreate, ResolutionRequestReview, ResolutionRequestSchema,
+    IncidentStatusHistorySchema
 )
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
@@ -144,6 +147,37 @@ class IncidentService:
             await self.db.refresh(refreshed, ["images"])
         return _serialize(refreshed)
 
+    # Valid Admin State Transitions
+    VALID_STATUS_TRANSITIONS = {
+        IncidentStatus.PENDING: {IncidentStatus.APPROVED, IncidentStatus.REJECTED},
+        IncidentStatus.APPROVED: {
+            IncidentStatus.UNDER_REVIEW,
+            IncidentStatus.RESOLVED_UNVERIFIED,
+            IncidentStatus.RESOLVED,
+            IncidentStatus.REJECTED,
+        },
+        IncidentStatus.UNDER_REVIEW: {
+            IncidentStatus.APPROVED,
+            IncidentStatus.RESOLVED_UNVERIFIED,
+            IncidentStatus.RESOLVED,
+            IncidentStatus.REJECTED,
+        },
+        IncidentStatus.RESOLVED_UNVERIFIED: {
+            IncidentStatus.RESOLVED,
+            IncidentStatus.UNDER_REVIEW,
+            IncidentStatus.APPROVED,
+            IncidentStatus.REJECTED,
+        },
+        IncidentStatus.RESOLVED: {
+            IncidentStatus.UNDER_REVIEW,
+            IncidentStatus.APPROVED,
+        },
+        IncidentStatus.REJECTED: {
+            IncidentStatus.PENDING,
+            IncidentStatus.APPROVED,
+        },
+    }
+
     async def update_status(
         self,
         incident_id: str,
@@ -153,17 +187,227 @@ class IncidentService:
         incident = await self.repo.get_by_id(incident_id)
         if not incident:
             raise HTTPException(status_code=404, detail="Incident not found")
-        updated = await self.repo.update_status(incident, data.status.value, data.admin_note)
+
+        current_status = incident.status
+        target_status = data.status
+
+        if current_status == target_status:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Incident is already in '{current_status.value}' status."
+            )
+
+        valid_targets = self.VALID_STATUS_TRANSITIONS.get(current_status, set())
+        if target_status not in valid_targets:
+            valid_names = [s.value for s in valid_targets]
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status transition from '{current_status.value}' to '{target_status.value}'. Valid transitions are: {', '.join(valid_names)}."
+            )
+
+        # Require rejection / resolution reason where appropriate
+        if target_status in (IncidentStatus.REJECTED, IncidentStatus.RESOLVED):
+            if not data.admin_note or not data.admin_note.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"A reason/note is required when setting status to '{target_status.value}'."
+                )
+
+        updated = await self.repo.update_status(
+            incident,
+            target_status,
+            data.admin_note.strip() if data.admin_note else None,
+            changed_by_id=admin.id
+        )
+
         # Notify reporter
         if incident.reporter_id:
             await self.notif_repo.create(
                 user_id=incident.reporter_id,
                 title=f"Incident #{incident_id[:8]} Updated",
-                message=f"Your report '{incident.title}' status changed to {data.status.value}.",
+                message=f"Your report '{incident.title}' status changed to {target_status.value}.",
                 type=NotificationType.INCIDENT_UPDATE,
                 incident_id=incident_id,
             )
+
         return _serialize(updated)
+
+    async def upload_evidence(self, file: UploadFile, current_user: User) -> dict:
+        ext = os.path.splitext(file.filename or "")[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"File type {ext} not allowed")
+        content = await file.read()
+        if len(content) > MAX_SIZE_BYTES:
+            raise HTTPException(status_code=400, detail="File too large")
+        unique_name = f"evidence_{uuid.uuid4()}{ext}"
+        save_path = os.path.join(settings.UPLOAD_DIR, unique_name)
+        async with aiofiles.open(save_path, "wb") as f:
+            await f.write(content)
+        url = f"/uploads/{unique_name}"
+        return {"url": url, "filename": file.filename or unique_name}
+
+    async def create_resolution_request(
+        self,
+        incident_id: str,
+        data: ResolutionRequestCreate,
+        current_user: User,
+    ) -> ResolutionRequestSchema:
+        incident = await self.repo.get_by_id(incident_id)
+        if not incident:
+            raise HTTPException(status_code=404, detail="Incident not found")
+
+        # Must be in APPROVED or UNDER_REVIEW status to request resolution
+        if incident.status not in (IncidentStatus.APPROVED, IncidentStatus.UNDER_REVIEW):
+            raise HTTPException(
+                status_code=400,
+                detail="Resolution can only be requested for incidents that are Approved or Under Review."
+            )
+
+        # Check if already a pending request
+        existing_requests = await self.repo.get_resolution_requests(incident_id)
+        if any(r.status == ResolutionStatus.PENDING for r in existing_requests):
+            raise HTTPException(
+                status_code=400,
+                detail="A resolution request is already pending review for this incident."
+            )
+
+        is_creator = str(incident.reporter_id) == str(current_user.id)
+
+        if is_creator:
+            # Incident creator submitting their own resolution request:
+            # Creator approval moves it to RESOLVED_UNVERIFIED for Admin review
+            req = await self.repo.create_resolution_request(
+                incident_id=incident_id,
+                requester_id=current_user.id,
+                explanation=data.explanation,
+                evidence_url=data.evidence_url,
+                status=ResolutionStatus.APPROVED,
+                reviewed_by_id=current_user.id,
+                reviewed_at=datetime.now(timezone.utc),
+            )
+            old_status = incident.status.value if hasattr(incident.status, "value") else str(incident.status)
+            await self.repo.update_status(
+                incident,
+                IncidentStatus.RESOLVED_UNVERIFIED,
+                admin_note=f"Resolution requested by incident creator: {data.explanation}",
+                changed_by_id=current_user.id,
+            )
+            return ResolutionRequestSchema.model_validate(req)
+        else:
+            # Normal user submitting resolution request:
+            req = await self.repo.create_resolution_request(
+                incident_id=incident_id,
+                requester_id=current_user.id,
+                explanation=data.explanation,
+                evidence_url=data.evidence_url,
+                status=ResolutionStatus.PENDING,
+            )
+            # Notify incident creator
+            if incident.reporter_id:
+                await self.notif_repo.create(
+                    user_id=incident.reporter_id,
+                    title="Resolution Requested",
+                    message=f"{current_user.full_name} requested resolution for your incident '{incident.title}'. Please review the evidence.",
+                    type=NotificationType.INCIDENT_UPDATE,
+                    incident_id=incident_id,
+                )
+            return ResolutionRequestSchema.model_validate(req)
+
+    async def review_resolution_request(
+        self,
+        incident_id: str,
+        request_id: str,
+        data: ResolutionRequestReview,
+        current_user: User,
+    ) -> ResolutionRequestSchema:
+        incident = await self.repo.get_by_id(incident_id)
+        if not incident:
+            raise HTTPException(status_code=404, detail="Incident not found")
+
+        # Security check: ONLY creator (or admin) can review
+        is_creator = str(incident.reporter_id) == str(current_user.id)
+        if not is_creator and current_user.role != UserRole.ADMIN:
+            raise HTTPException(
+                status_code=403,
+                detail="Only the incident creator can review resolution requests."
+            )
+
+        req = await self.repo.get_resolution_request_by_id(request_id)
+        if not req or req.incident_id != incident_id:
+            raise HTTPException(status_code=404, detail="Resolution request not found")
+
+        if req.status != ResolutionStatus.PENDING:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Resolution request has already been reviewed ({req.status.value})."
+            )
+
+        now = datetime.now(timezone.utc)
+        if data.action == "approve":
+            # Creator approves resolution -> Incident becomes RESOLVED (UNVERIFIED)
+            # Must NOT immediately become RESOLVED
+            updated_req = await self.repo.update_resolution_request(
+                req,
+                status=ResolutionStatus.APPROVED,
+                reviewed_by_id=current_user.id,
+                reviewed_at=now,
+            )
+            await self.repo.update_status(
+                incident,
+                IncidentStatus.RESOLVED_UNVERIFIED,
+                admin_note=f"Creator approved resolution request: {req.explanation}",
+                changed_by_id=current_user.id,
+            )
+            # Notify requester
+            if req.requester_id:
+                await self.notif_repo.create(
+                    user_id=req.requester_id,
+                    title="Resolution Request Approved by Creator",
+                    message=f"The incident creator approved your resolution request for '{incident.title}'. It is now pending admin verification.",
+                    type=NotificationType.INCIDENT_UPDATE,
+                    incident_id=incident_id,
+                )
+            return ResolutionRequestSchema.model_validate(updated_req)
+        else:
+            # Creator rejects resolution -> Keep incident in previous status, record rejection reason
+            if not data.rejection_reason or not data.rejection_reason.strip():
+                raise HTTPException(status_code=400, detail="Rejection reason is required.")
+
+            rejection_reason = data.rejection_reason.strip()
+            updated_req = await self.repo.update_resolution_request(
+                req,
+                status=ResolutionStatus.REJECTED,
+                rejection_reason=rejection_reason,
+                reviewed_by_id=current_user.id,
+                reviewed_at=now,
+            )
+            # Record in status history
+            current_status_val = incident.status.value if hasattr(incident.status, "value") else str(incident.status)
+            await self.repo.add_status_history(
+                incident_id=incident.id,
+                from_status=current_status_val,
+                to_status=current_status_val,
+                changed_by_id=current_user.id,
+                reason=f"Resolution request rejected by creator: {rejection_reason}",
+            )
+            # Notify requester
+            if req.requester_id:
+                await self.notif_repo.create(
+                    user_id=req.requester_id,
+                    title="Resolution Request Rejected",
+                    message=f"Your resolution request for '{incident.title}' was rejected by the creator: {rejection_reason}",
+                    type=NotificationType.INCIDENT_UPDATE,
+                    incident_id=incident_id,
+                )
+            return ResolutionRequestSchema.model_validate(updated_req)
+
+    async def get_resolution_requests(self, incident_id: str) -> List[ResolutionRequestSchema]:
+        requests = await self.repo.get_resolution_requests(incident_id)
+        return [ResolutionRequestSchema.model_validate(r) for r in requests]
+
+    async def get_status_history(self, incident_id: str) -> List[IncidentStatusHistorySchema]:
+        history = await self.repo.get_status_history(incident_id)
+        return [IncidentStatusHistorySchema.model_validate(h) for h in history]
 
     async def delete_incident(self, incident_id: str, admin: User) -> None:
         incident = await self.repo.get_by_id(incident_id)
@@ -195,15 +439,17 @@ class IncidentService:
 
         return {
             "total_incidents": total,
-            "pending": by_status.get("pending", 0),
-            "under_review": by_status.get("under_review", 0),
-            "approved": by_status.get("approved", 0),
-            "rejected": by_status.get("rejected", 0),
-            "resolved": by_status.get("resolved", 0),
+            "pending": by_status.get(IncidentStatus.PENDING, by_status.get("pending", by_status.get("PENDING", 0))),
+            "under_review": by_status.get(IncidentStatus.UNDER_REVIEW, by_status.get("under_review", by_status.get("UNDER_REVIEW", 0))),
+            "approved": by_status.get(IncidentStatus.APPROVED, by_status.get("approved", by_status.get("APPROVED", 0))),
+            "rejected": by_status.get(IncidentStatus.REJECTED, by_status.get("rejected", by_status.get("REJECTED", 0))),
+            "resolved_unverified": by_status.get(IncidentStatus.RESOLVED_UNVERIFIED, by_status.get("resolved_unverified", by_status.get("RESOLVED_UNVERIFIED", 0))),
+            "resolved": by_status.get(IncidentStatus.RESOLVED, by_status.get("resolved", by_status.get("RESOLVED", 0))),
             "by_category": by_category,
             "by_severity": {k: v for k, v in by_severity.items()},
             "last_30_days": last_30,
             "recent_incidents": recent_serialized,
             "daily_trend": daily_trend,
         }
+
 

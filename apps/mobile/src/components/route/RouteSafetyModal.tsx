@@ -223,7 +223,7 @@ export const RouteSafetyModal: React.FC<RouteSafetyModalProps> = ({
                           </Text>
                         </View>
                         <Badge
-                          label={incident.severity}
+                          label={incident.severity ?? 'unknown'}
                           variant="severity"
                           severity={incident.severity}
                         />

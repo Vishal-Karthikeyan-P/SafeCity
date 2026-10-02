@@ -19,6 +19,7 @@ const badgeVariants = cva(
         under_review: 'badge-under_review',
         approved: 'badge-approved',
         rejected: 'badge-rejected',
+        resolved_unverified: 'badge-resolved_unverified',
         resolved: 'badge-resolved',
       },
     },

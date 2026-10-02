@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/select'
 import { Eye, EyeOff } from 'lucide-react'
 import { useIncidents, useCategories, useHeatmap } from '@/api/incidents'
+import { SearchableCategorySelect } from '@/components/incidents/SearchableCategorySelect'
 import { useAreaSafetyScore, useCitySafetyOverview } from '@/api/safety'
 import type { AreaSafetyScore, CitySafetyOverview } from '@/types'
 
@@ -371,17 +372,17 @@ export function MapPage() {
             className="w-48 h-8 text-sm"
           />
 
-          <Select value={filterCategory ?? 'all'} onValueChange={(v) => setFilterCategory(v === 'all' ? null : v)}>
-            <SelectTrigger className="w-44 h-8 text-sm">
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {(categories as any[]).map((c: any) => (
-                <SelectItem key={c.id} value={c.id}>{c.icon} {c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="w-48">
+            <SearchableCategorySelect
+              value={filterCategory}
+              onChange={(v) => setFilterCategory(v)}
+              allowAll={true}
+              allLabel="All Categories"
+              clearable={true}
+              placeholder="All Categories"
+              className="h-8"
+            />
+          </div>
 
           <Select value={filterSeverity ?? 'all'} onValueChange={(v) => setFilterSeverity(v === 'all' ? null : v)}>
             <SelectTrigger className="w-36 h-8 text-sm">

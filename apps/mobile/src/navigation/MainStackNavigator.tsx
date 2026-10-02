@@ -4,6 +4,7 @@ import { MainStackParamList } from '../types/navigation';
 import { MainTabNavigator } from './MainTabNavigator';
 import { ActiveSOSScreen } from '../screens/sos/ActiveSOSScreen';
 import { EmergencyContactsScreen } from '../screens/sos/EmergencyContactsScreen';
+import { MyIncidentsScreen } from '../screens/profile/MyIncidentsScreen';
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
@@ -21,6 +22,12 @@ export const MainStackNavigator: React.FC = () => {
         component={EmergencyContactsScreen}
         options={{ animation: 'slide_from_right' }}
       />
+      <Stack.Screen
+        name="MyIncidents"
+        component={MyIncidentsScreen}
+        options={{ animation: 'slide_from_right' }}
+      />
     </Stack.Navigator>
   );
 };
+

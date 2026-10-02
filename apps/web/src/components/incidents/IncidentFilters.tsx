@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select'
-import { useCategories } from '@/api/incidents'
+import { SearchableCategorySelect } from '@/components/incidents/SearchableCategorySelect'
 import { useFilterStore } from '@/store/filters'
 import { Input } from '@/components/ui/input'
 
@@ -18,8 +18,9 @@ const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
   { value: 'under_review', label: 'Under Review' },
   { value: 'approved', label: 'Approved' },
-  { value: 'rejected', label: 'Rejected' },
+  { value: 'resolved_unverified', label: 'Resolved (Unverified)' },
   { value: 'resolved', label: 'Resolved' },
+  { value: 'rejected', label: 'Rejected' },
 ]
 
 interface IncidentFiltersProps {
@@ -27,7 +28,6 @@ interface IncidentFiltersProps {
 }
 
 export function IncidentFilters({ showStatus = false }: IncidentFiltersProps) {
-  const { data: categories = [] } = useCategories()
   const { category_id, severity, status, date_from, date_to, sort_by, setFilter, resetFilters } = useFilterStore()
 
   return (
@@ -38,23 +38,16 @@ export function IncidentFilters({ showStatus = false }: IncidentFiltersProps) {
       </div>
 
       {/* Category */}
-      <div className="min-w-[160px]">
-        <Select
-          value={category_id ?? 'all'}
-          onValueChange={(v) => setFilter('category_id', v === 'all' ? null : v)}
-        >
-          <SelectTrigger id="filter-category">
-            <SelectValue placeholder="All Categories" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {categories.map((c: any) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.icon} {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="min-w-[190px]">
+        <SearchableCategorySelect
+          id="filter-category"
+          value={category_id}
+          onChange={(v) => setFilter('category_id', v)}
+          allowAll={true}
+          allLabel="All Categories"
+          clearable={true}
+          placeholder="All Categories"
+        />
       </div>
 
       {/* Severity */}

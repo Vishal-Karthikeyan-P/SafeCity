@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { apiClient } from './client';
-import { Incident, IncidentCategory, PaginatedList, SeverityLevel } from '../types';
+import { Incident, IncidentCategory, PaginatedList, SeverityLevel, ResolutionRequest, IncidentStatusHistory } from '../types';
 
 export interface CreateIncidentPayload {
   title: string;
@@ -49,6 +49,13 @@ export const IncidentsApi = {
     return res.data;
   },
 
+  async getMyIncidents(page: number = 1, limit: number = 15): Promise<PaginatedList<Incident>> {
+    const res = await apiClient.get<PaginatedList<Incident>>('/incidents/my', {
+      params: { page, limit },
+    });
+    return res.data;
+  },
+
   async create(payload: CreateIncidentPayload): Promise<Incident> {
     const res = await apiClient.post<Incident>('/incidents', payload);
     return res.data;
@@ -78,6 +85,71 @@ export const IncidentsApi = {
 
   async getById(id: string): Promise<Incident> {
     const res = await apiClient.get<Incident>(`/incidents/${id}`);
+    return res.data;
+  },
+
+  async uploadEvidence(uri: string): Promise<{ url: string; filename: string }> {
+    const formData = new FormData();
+    const filename = uri.split('/').pop() || 'evidence.jpg';
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `image/${match[1].toLowerCase()}` : 'image/jpeg';
+
+    formData.append('file', {
+      uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
+      name: filename,
+      type,
+    } as any);
+
+    const res = await apiClient.post<{ url: string; filename: string }>('/incidents/upload-evidence', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return res.data;
+  },
+
+  async createResolutionRequest(
+    incidentId: string,
+    explanation: string,
+    evidenceUrl?: string
+  ): Promise<ResolutionRequest> {
+    const res = await apiClient.post<ResolutionRequest>(
+      `/incidents/${incidentId}/resolution-requests`,
+      {
+        explanation,
+        evidence_url: evidenceUrl,
+      }
+    );
+    return res.data;
+  },
+
+  async getResolutionRequests(incidentId: string): Promise<ResolutionRequest[]> {
+    const res = await apiClient.get<ResolutionRequest[]>(
+      `/incidents/${incidentId}/resolution-requests`
+    );
+    return res.data;
+  },
+
+  async reviewResolutionRequest(
+    incidentId: string,
+    requestId: string,
+    action: 'approve' | 'reject',
+    rejectionReason?: string
+  ): Promise<ResolutionRequest> {
+    const res = await apiClient.post<ResolutionRequest>(
+      `/incidents/${incidentId}/resolution-requests/${requestId}/review`,
+      {
+        action,
+        rejection_reason: rejectionReason,
+      }
+    );
+    return res.data;
+  },
+
+  async getStatusHistory(incidentId: string): Promise<IncidentStatusHistory[]> {
+    const res = await apiClient.get<IncidentStatusHistory[]>(
+      `/incidents/${incidentId}/status-history`
+    );
     return res.data;
   },
 };

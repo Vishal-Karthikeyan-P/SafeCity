@@ -7,6 +7,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
@@ -812,8 +813,8 @@ export const SafeRouteScreen: React.FC = () => {
                   routeItem.route_risk_level === 'safe'
                     ? Colors.safe
                     : routeItem.route_risk_level === 'moderate'
-                    ? Colors.moderate
-                    : Colors.critical;
+                      ? Colors.moderate
+                      : Colors.critical;
 
                 return (
                   <TouchableOpacity

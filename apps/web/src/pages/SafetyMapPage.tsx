@@ -10,6 +10,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { useIncidents, useCategories, useHeatmap } from '@/api/incidents'
+import { SearchableCategorySelect } from '@/components/incidents/SearchableCategorySelect'
 import { useAreaSafetyScore, useCitySafetyOverview } from '@/api/safety'
 import type { AreaSafetyScore, CitySafetyOverview } from '@/types'
 
@@ -326,17 +327,18 @@ export function SafetyMapPage() {
       {showFilters && (
         <div className="flex flex-wrap gap-3 px-4 md:px-6 py-3 border-b bg-card/80 backdrop-blur shrink-0 animate-in slide-in-from-top-2 duration-200">
           {/* Category */}
-          <Select value={filterCategory ?? 'all'} onValueChange={(v) => setFilterCategory(v === 'all' ? null : v)}>
-            <SelectTrigger className="w-44 h-8 text-sm" id="safety-category-filter">
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {(categories as any[]).map((c: any) => (
-                <SelectItem key={c.id} value={c.id}>{c.icon} {c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="w-48">
+            <SearchableCategorySelect
+              id="safety-category-filter"
+              value={filterCategory}
+              onChange={(v) => setFilterCategory(v)}
+              allowAll={true}
+              allLabel="All Categories"
+              clearable={true}
+              placeholder="All Categories"
+              className="h-8"
+            />
+          </div>
 
           {/* Severity */}
           <Select value={filterSeverity ?? 'all'} onValueChange={(v) => setFilterSeverity(v === 'all' ? null : v)}>

@@ -30,7 +30,14 @@ class IncidentStatus(str, enum.Enum):
     UNDER_REVIEW = "under_review"
     APPROVED = "approved"
     REJECTED = "rejected"
+    RESOLVED_UNVERIFIED = "resolved_unverified"
     RESOLVED = "resolved"
+
+
+class ResolutionStatus(str, enum.Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
 
 
 class IncidentCategory(Base):
@@ -120,6 +127,18 @@ class Incident(Base):
     images: Mapped[List["IncidentImage"]] = relationship(
         "IncidentImage", back_populates="incident", cascade="all, delete-orphan"
     )
+    resolution_requests: Mapped[List["ResolutionRequest"]] = relationship(
+        "ResolutionRequest",
+        back_populates="incident",
+        cascade="all, delete-orphan",
+        order_by="ResolutionRequest.created_at.desc()",
+    )
+    status_history: Mapped[List["IncidentStatusHistory"]] = relationship(
+        "IncidentStatusHistory",
+        back_populates="incident",
+        cascade="all, delete-orphan",
+        order_by="IncidentStatusHistory.created_at.desc()",
+    )
 
     __table_args__ = (
         sa.Index("ix_incidents_status_created", "status", "created_at"),
@@ -150,3 +169,88 @@ class IncidentImage(Base):
 
     # Relationships
     incident: Mapped["Incident"] = relationship("Incident", back_populates="images")
+
+
+class ResolutionRequest(Base):
+    __tablename__ = "resolution_requests"
+
+    id: Mapped[str] = mapped_column(
+        sa.String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    incident_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("incidents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    requester_id: Mapped[Optional[str]] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    status: Mapped[ResolutionStatus] = mapped_column(
+        sa.Enum(ResolutionStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=ResolutionStatus.PENDING,
+        index=True,
+    )
+    explanation: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    evidence_url: Mapped[Optional[str]] = mapped_column(sa.String(512), nullable=True)
+    rejection_reason: Mapped[Optional[str]] = mapped_column(sa.Text, nullable=True)
+    reviewed_by_id: Mapped[Optional[str]] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), default=utcnow, nullable=False, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+    # Relationships
+    incident: Mapped["Incident"] = relationship("Incident", back_populates="resolution_requests")
+    requester: Mapped[Optional["User"]] = relationship(  # type: ignore[name-defined]
+        "User", foreign_keys=[requester_id]
+    )
+    reviewed_by: Mapped[Optional["User"]] = relationship(  # type: ignore[name-defined]
+        "User", foreign_keys=[reviewed_by_id]
+    )
+
+
+class IncidentStatusHistory(Base):
+    __tablename__ = "incident_status_history"
+
+    id: Mapped[str] = mapped_column(
+        sa.String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    incident_id: Mapped[str] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("incidents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    from_status: Mapped[str] = mapped_column(sa.String(50), nullable=False)
+    to_status: Mapped[str] = mapped_column(sa.String(50), nullable=False)
+    changed_by_id: Mapped[Optional[str]] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    reason: Mapped[Optional[str]] = mapped_column(sa.Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), default=utcnow, nullable=False, index=True
+    )
+
+    # Relationships
+    incident: Mapped["Incident"] = relationship("Incident", back_populates="status_history")
+    changed_by: Mapped[Optional["User"]] = relationship(  # type: ignore[name-defined]
+        "User", foreign_keys=[changed_by_id]
+    )
+
