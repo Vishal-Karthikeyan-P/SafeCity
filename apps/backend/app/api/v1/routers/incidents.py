@@ -21,8 +21,10 @@ from app.schemas.incident import (
     ResolutionRequestReview,
     ResolutionRequestSchema,
     IncidentStatusHistorySchema,
+    UpdateIncidentStatusRequest,
 )
 from app.services.incident_service import IncidentService
+from app.services.severity_engine import compute_severity, preview_severity as _engine_preview
 
 router = APIRouter()
 
@@ -107,6 +109,28 @@ async def get_heatmap(
         ))
         
     return points
+
+
+@router.get("/preview-severity")
+async def preview_severity(
+    category_id: Optional[str] = Query(None),
+    title: str = Query(""),
+    description: str = Query(""),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Preview auto-determined severity without creating an incident.
+    Used by frontend to show live severity feedback as user fills the form.
+    category_slug is resolved from category_id internally.
+    """
+    cat_slug = ""
+    if category_id:
+        repo = IncidentRepository(db)
+        cat = await repo.get_category_by_id(category_id)
+        if cat:
+            cat_slug = cat.slug
+    result = _engine_preview(cat_slug, title, description)
+    return result
 
 
 @router.post("", response_model=IncidentSchema, status_code=201)

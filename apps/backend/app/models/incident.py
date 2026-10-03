@@ -97,8 +97,18 @@ class Incident(Base):
     # Admin note
     admin_note: Mapped[Optional[str]] = mapped_column(sa.Text, nullable=True)
 
-    # Reporter (nullable for anonymous)
+    # Reporter (nullable for publicly-visible link; always stored in anonymous_reporter_id)
     reporter_id: Mapped[Optional[str]] = mapped_column(
+        sa.String(36),
+        sa.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    # Internal-only ownership for anonymous reports:
+    # When is_anonymous=True, reporter_id is set to NULL (hidden) but
+    # anonymous_reporter_id stores the real user ID so My Incidents,
+    # notifications and resolution workflows still work.
+    anonymous_reporter_id: Mapped[Optional[str]] = mapped_column(
         sa.String(36),
         sa.ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,

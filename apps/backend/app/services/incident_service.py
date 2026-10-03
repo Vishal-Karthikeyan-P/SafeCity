@@ -23,13 +23,20 @@ from app.schemas.incident import (
     ResolutionRequestCreate, ResolutionRequestReview, ResolutionRequestSchema,
     IncidentStatusHistorySchema
 )
+from app.services.severity_engine import compute_severity, preview_severity as _engine_preview
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 MAX_SIZE_BYTES = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 
 def _serialize(incident: Incident) -> IncidentSchema:
-    return IncidentSchema.model_validate(incident)
+    schema = IncidentSchema.model_validate(incident)
+    # Strip reporter identity for anonymous incidents — applies to ALL callers
+    # including admin and public views (anonymity guarantee).
+    if incident.is_anonymous:
+        schema.reporter_id = None
+        schema.reporter = None
+    return schema
 
 
 class IncidentService:
@@ -48,11 +55,19 @@ class IncidentService:
         if not cat:
             raise HTTPException(status_code=400, detail="Category not found")
 
+        # Auto-determine severity from category + title + description
+        # (client-supplied severity is ignored to ensure consistency)
+        auto_severity = compute_severity(
+            category_slug=cat.slug,
+            title=data.title,
+            description=data.description,
+        )
+
         incident = await self.repo.create(
             title=data.title,
             description=data.description,
             category_id=data.category_id,
-            severity=data.severity.value,
+            severity=auto_severity,
             is_anonymous=data.is_anonymous,
             location_lat=data.location_lat,
             location_lng=data.location_lng,
@@ -89,12 +104,24 @@ class IncidentService:
         )
 
     async def list_my_incidents(self, user_id: str, page: int, limit: int) -> IncidentListResponse:
-        incidents, total = await self.repo.list_incidents(
-            page=page, limit=limit, reporter_id=user_id
+        # Use dedicated repo method that includes anonymous_reporter_id matches
+        incidents, total = await self.repo.list_my_incidents(
+            user_id=user_id, page=page, limit=limit
         )
         pages = math.ceil(total / limit) if total > 0 else 1
+        serialized = []
+        for inc in incidents:
+            schema = _serialize(inc)
+            # For anonymous incidents the reporter object is hidden (reporter_id=NULL),
+            # but the schema may still expose anonymous_reporter_id through the ORM.
+            # Explicitly nullify reporter fields in the serialized output so no
+            # identity is leaked even in the owner's own list.
+            if inc.is_anonymous:
+                schema.reporter = None
+                schema.reporter_id = None
+            serialized.append(schema)
         return IncidentListResponse(
-            items=[_serialize(i) for i in incidents],
+            items=serialized,
             total=total,
             page=page,
             limit=limit,
@@ -220,10 +247,11 @@ class IncidentService:
             changed_by_id=admin.id
         )
 
-        # Notify reporter
-        if incident.reporter_id:
+        # Notify reporter (both anonymous and non-anonymous)
+        notif_user_id = incident.reporter_id or incident.anonymous_reporter_id
+        if notif_user_id:
             await self.notif_repo.create(
-                user_id=incident.reporter_id,
+                user_id=notif_user_id,
                 title=f"Incident #{incident_id[:8]} Updated",
                 message=f"Your report '{incident.title}' status changed to {target_status.value}.",
                 type=NotificationType.INCIDENT_UPDATE,
@@ -271,7 +299,11 @@ class IncidentService:
                 detail="A resolution request is already pending review for this incident."
             )
 
-        is_creator = str(incident.reporter_id) == str(current_user.id)
+        # Check if this user is the incident creator (handles both anonymous and non-anonymous)
+        is_creator = (
+            str(incident.reporter_id) == str(current_user.id)
+            or str(incident.anonymous_reporter_id) == str(current_user.id)
+        )
 
         if is_creator:
             # Incident creator submitting their own resolution request:
@@ -325,7 +357,11 @@ class IncidentService:
             raise HTTPException(status_code=404, detail="Incident not found")
 
         # Security check: ONLY creator (or admin) can review
-        is_creator = str(incident.reporter_id) == str(current_user.id)
+        # For anonymous incidents, check anonymous_reporter_id as well
+        is_creator = (
+            str(incident.reporter_id) == str(current_user.id)
+            or str(incident.anonymous_reporter_id) == str(current_user.id)
+        )
         if not is_creator and current_user.role != UserRole.ADMIN:
             raise HTTPException(
                 status_code=403,

@@ -85,6 +85,27 @@ export function useCategories() {
   })
 }
 
+// ── Auto-severity preview ─────────────────────────────────────
+export function usePreviewSeverity(
+  categoryId: string | undefined,
+  title: string,
+  description: string
+) {
+  const enabled = !!(categoryId && title.length >= 3)
+  return useQuery({
+    queryKey: ['preview-severity', categoryId, title, description],
+    queryFn: async () => {
+      const res = await api.get('/incidents/preview-severity', {
+        params: { category_id: categoryId || '', title, description },
+      })
+      return res.data as { severity: string; score: number }
+    },
+    enabled,
+    staleTime: 5000,        // cache 5s to avoid hammering on every keystroke
+    placeholderData: (prev) => prev,
+  })
+}
+
 // ── Create incident ────────────────────────────────────────────
 export function useCreateIncident() {
   const qc = useQueryClient()

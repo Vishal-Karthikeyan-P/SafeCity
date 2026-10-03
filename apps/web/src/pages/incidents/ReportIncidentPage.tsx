@@ -2,17 +2,45 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { MapPin, Image as ImageIcon, X, AlertTriangle, ArrowRight, Loader2 } from 'lucide-react'
+import { MapPin, Image as ImageIcon, X, ArrowRight, Loader2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent } from '@/components/ui/card'
 import { IncidentMap } from '@/components/map/IncidentMap'
-import { useCreateIncident, useUploadImages } from '@/api/incidents'
+import { useCreateIncident, useUploadImages, usePreviewSeverity } from '@/api/incidents'
 import { SearchableCategorySelect } from '@/components/incidents/SearchableCategorySelect'
 import { reportIncidentSchema, type ReportIncidentValues } from '@/lib/schemas'
 import { toast } from 'sonner'
+
+// Severity appearance helpers
+const SEVERITY_STYLES: Record<string, { bg: string; text: string; dot: string; label: string }> = {
+  low:      { bg: 'bg-green-50',  text: 'text-green-700',  dot: 'bg-green-500',  label: 'Low' },
+  medium:   { bg: 'bg-amber-50',  text: 'text-amber-700',  dot: 'bg-amber-500',  label: 'Medium' },
+  high:     { bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500', label: 'High' },
+  critical: { bg: 'bg-red-50',    text: 'text-red-700',    dot: 'bg-red-500',    label: 'Critical' },
+}
+
+function SeverityPreviewBadge({ severity, score, loading }: { severity?: string; score?: number; loading?: boolean }) {
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 text-sm text-muted-foreground animate-pulse">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        Calculating severity...
+      </div>
+    )
+  }
+  if (!severity) return null
+  const style = SEVERITY_STYLES[severity] ?? SEVERITY_STYLES.medium
+  return (
+    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium ${style.bg} ${style.text}`}>
+      <span className={`w-2 h-2 rounded-full ${style.dot}`} />
+      <Sparkles className="w-3.5 h-3.5 opacity-60" />
+      Auto-detected severity: <strong>{style.label}</strong>
+      {score != null && <span className="opacity-60 text-xs ml-1">(score {score})</span>}
+    </div>
+  )
+}
 
 export function ReportIncidentPage() {
   const navigate = useNavigate()
@@ -35,9 +63,20 @@ export function ReportIncidentPage() {
     resolver: zodResolver(reportIncidentSchema),
     defaultValues: {
       is_anonymous: false,
-      severity: 'medium',
     },
   })
+
+  // Watch fields for live severity preview
+  const watchedCategoryId = watch('category_id')
+  const watchedTitle       = watch('title') ?? ''
+  const watchedDescription = watch('description') ?? ''
+
+  // Live auto-severity preview (debounced via staleTime on the hook)
+  const { data: severityPreview, isFetching: isSeverityLoading } = usePreviewSeverity(
+    watchedCategoryId,
+    watchedTitle,
+    watchedDescription,
+  )
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -92,6 +131,7 @@ export function ReportIncidentPage() {
 
   const onSubmit = async (data: ReportIncidentValues) => {
     try {
+      // severity is NOT sent — backend auto-computes it
       const incident = await createIncident(data)
       if (images.length > 0) {
         await uploadImages({ incidentId: incident.id, files: images })
@@ -128,32 +168,15 @@ export function ReportIncidentPage() {
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1.5" htmlFor="category_id">Category</label>
-                <SearchableCategorySelect
-                  id="category_id"
-                  value={watch('category_id')}
-                  onChange={(val) => setValue('category_id', val || '', { shouldValidate: true })}
-                  placeholder="Search and select category..."
-                  error={errors.category_id?.message}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1.5" htmlFor="severity">Severity</label>
-                <Select defaultValue="medium" onValueChange={(v: any) => setValue('severity', v)}>
-                  <SelectTrigger id="severity">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Low - Non-urgent</SelectItem>
-                    <SelectItem value="medium">Medium - Needs attention</SelectItem>
-                    <SelectItem value="high">High - Urgent</SelectItem>
-                    <SelectItem value="critical">Critical - Immediate danger</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div>
+              <label className="block text-sm font-medium mb-1.5" htmlFor="category_id">Category</label>
+              <SearchableCategorySelect
+                id="category_id"
+                value={watch('category_id')}
+                onChange={(val) => setValue('category_id', val || '', { shouldValidate: true })}
+                placeholder="Search and select category..."
+                error={errors.category_id?.message}
+              />
             </div>
 
             <div>
@@ -166,6 +189,23 @@ export function ReportIncidentPage() {
               />
               {errors.description && <p className="text-xs text-destructive mt-1">{errors.description.message}</p>}
             </div>
+
+            {/* Auto-Severity Preview */}
+            {(watchedCategoryId && watchedTitle.length >= 3) && (
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                  System-Determined Severity
+                </p>
+                <SeverityPreviewBadge
+                  severity={severityPreview?.severity}
+                  score={severityPreview?.score}
+                  loading={isSeverityLoading && !severityPreview}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Severity is automatically calculated based on category, title, and description.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -207,7 +247,7 @@ export function ReportIncidentPage() {
 
         <Card>
           <CardContent className="p-6 space-y-6">
-            <h2 className="text-lg font-semibold border-b pb-2">3. Evidence & Options</h2>
+            <h2 className="text-lg font-semibold border-b pb-2">3. Evidence &amp; Options</h2>
             
             <div>
               <label className="block text-sm font-medium mb-1.5">Images (Up to 5)</label>
@@ -244,7 +284,9 @@ export function ReportIncidentPage() {
               />
               <div className="flex-1">
                 <label htmlFor="is_anonymous" className="text-sm font-medium block">Report Anonymously</label>
-                <p className="text-xs text-muted-foreground">Your name will not be visible to the public or authorities.</p>
+                <p className="text-xs text-muted-foreground">
+                  Your name will not be visible to the public or administrators. You will still receive status updates.
+                </p>
               </div>
             </div>
           </CardContent>

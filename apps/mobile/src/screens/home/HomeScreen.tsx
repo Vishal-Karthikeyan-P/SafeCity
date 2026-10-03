@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { MainTabParamList, MainStackParamList } from '../../types/navigation';
 import { useAuthStore } from '../../store/authStore';
 import { useSOSStore } from '../../store/sosStore';
@@ -33,13 +34,54 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const rootNavigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { user } = useAuthStore();
   const { activeSOS, checkActiveSOS } = useSOSStore();
-  const [coords] = useState(DEFAULT_COORDS);
+
+  // GPS location state — start with default, upgrade to real GPS
+  const [coords, setCoords] = useState({
+    latitude: DEFAULT_COORDS.latitude,
+    longitude: DEFAULT_COORDS.longitude,
+  });
+  const [locationName, setLocationName] = useState(DEFAULT_COORDS.cityName);
+  const [isUsingGPS, setIsUsingGPS] = useState(false);
   const [isCountdownOpen, setIsCountdownOpen] = useState(false);
 
-  // Check active SOS on mount
+  // Check active SOS and acquire GPS on mount
   React.useEffect(() => {
     checkActiveSOS();
+    acquireGPS();
   }, [checkActiveSOS]);
+
+  const acquireGPS = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const newCoords = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      };
+      setCoords(newCoords);
+      setIsUsingGPS(true);
+
+      // Reverse geocode to get a readable location name
+      try {
+        const [geo] = await Location.reverseGeocodeAsync(newCoords);
+        if (geo) {
+          const parts = [
+            geo.district || geo.subregion || geo.name,
+            geo.city || geo.region,
+          ].filter(Boolean);
+          if (parts.length > 0) setLocationName(parts.join(', '));
+        }
+      } catch {
+        // keep default name
+      }
+    } catch {
+      // GPS failed — stay with DEFAULT_COORDS silently
+    }
+  };
 
   // 1. Fetch Area Safety Score
   const {
@@ -152,7 +194,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
         <SafetyScoreCard
           safetyScore={safetyScore}
           isLoading={isSafetyLoading}
-          locationName={coords.cityName}
+          locationName={isUsingGPS ? locationName : `${locationName} (default)`}
         />
 
         {/* Quick Actions (Safe Route, Report, Map, SOS) */}

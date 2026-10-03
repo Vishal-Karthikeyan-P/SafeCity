@@ -6,7 +6,7 @@ export interface CreateIncidentPayload {
   title: string;
   description: string;
   category_id: string;
-  severity: SeverityLevel;
+  severity?: SeverityLevel;   // optional — backend auto-determines this
   location_lat: number;
   location_lng: number;
   location_address?: string;
@@ -53,6 +53,18 @@ export const IncidentsApi = {
     const res = await apiClient.get<PaginatedList<Incident>>('/incidents/my', {
       params: { page, limit },
     });
+    return res.data;
+  },
+
+  async previewSeverity(
+    categoryId: string,
+    title: string,
+    description: string,
+  ): Promise<{ severity: string; score: number }> {
+    const res = await apiClient.get<{ severity: string; score: number }>(
+      '/incidents/preview-severity',
+      { params: { category_id: categoryId, title, description } }
+    );
     return res.data;
   },
 

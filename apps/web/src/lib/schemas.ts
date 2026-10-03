@@ -19,7 +19,6 @@ export const reportIncidentSchema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters').max(255),
   description: z.string().min(10, 'Description must be at least 10 characters'),
   category_id: z.string().min(1, 'Select a category'),
-  severity: z.enum(['low', 'medium', 'high', 'critical']),
   is_anonymous: z.boolean().default(false),
   location_address: z.string().optional(),
   location_lat: z.number({ required_error: 'Location is required' }).min(-90).max(90),

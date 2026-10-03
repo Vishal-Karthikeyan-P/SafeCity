@@ -115,7 +115,10 @@ class IncidentRepository:
             location_lng=location_lng,
             location_address=location_address,
             location_geom=geom,
+            # For anonymous reports: hide reporter_id from public/admin views
+            # but store internally as anonymous_reporter_id for ownership tracking.
             reporter_id=None if is_anonymous else reporter_id,
+            anonymous_reporter_id=reporter_id if is_anonymous else None,
         )
         self.db.add(incident)
         await self.db.flush()
@@ -281,7 +284,15 @@ class IncidentRepository:
                 )
             )
         if reporter_id:
-            query = query.where(Incident.reporter_id == reporter_id)
+            # Include incidents where:
+            # - reporter_id matches (non-anonymous), OR
+            # - anonymous_reporter_id matches (anonymous, internal ownership)
+            query = query.where(
+                or_(
+                    Incident.reporter_id == reporter_id,
+                    Incident.anonymous_reporter_id == reporter_id,
+                )
+            )
 
         # Count
         count_q = select(func.count()).select_from(query.subquery())
@@ -429,3 +440,33 @@ class IncidentRepository:
             
         return trend
 
+
+    async def list_my_incidents(
+        self,
+        user_id: str,
+        page: int = 1,
+        limit: int = 15,
+    ) -> Tuple[List[Incident], int]:
+        """
+        Returns all incidents that belong to the authenticated user,
+        including anonymous ones (matched via anonymous_reporter_id).
+        reporter fields on anonymous incidents are stripped by the service
+        before returning to any API caller.
+        """
+        query = (
+            self._base_query()
+            .where(
+                or_(
+                    Incident.reporter_id == user_id,
+                    Incident.anonymous_reporter_id == user_id,
+                )
+            )
+            .order_by(Incident.created_at.desc())
+        )
+
+        count_q = select(func.count()).select_from(query.subquery())
+        total = (await self.db.execute(count_q)).scalar_one()
+
+        query = query.offset((page - 1) * limit).limit(limit)
+        result = await self.db.execute(query)
+        return list(result.scalars().all()), total
