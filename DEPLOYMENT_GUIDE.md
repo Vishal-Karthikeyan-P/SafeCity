@@ -527,3 +527,162 @@ If you have Android Studio and Android SDK configured locally:
 5. **Mobile Verification:**
    - Download the APK from GitHub Releases onto an Android device.
    - Log in, record an incident with GPS location, and confirm that the pin shows up on the Vercel web map in real time.
+
+
+---
+
+## 10. App Icons & Branding Assets
+
+The SafeCity shield icon (navy background, glowing blue location pin, radar rings, city skyline) has been generated and wired into both apps.
+
+### Generated Files
+
+| File | Location | Purpose |
+|------|----------|---------|
+| `icon.png` | `apps/web/public/icon.png` | Web favicon (PNG fallback) + PWA icon |
+| `favicon.svg` | `apps/web/public/favicon.svg` | Vector favicon (primary — shown in browser tabs) |
+| `manifest.json` | `apps/web/public/manifest.json` | PWA web manifest (Add to Home Screen) |
+| `og-image.jpg` | `apps/web/public/og-image.jpg` | Open Graph / Twitter Card social preview |
+| `icon.png` | `apps/mobile/assets/icon.png` | iOS & Android launcher icon (1024×1024) |
+| `adaptive-icon.png` | `apps/mobile/assets/adaptive-icon.png` | Android adaptive icon foreground layer |
+| `splash.png` | `apps/mobile/assets/splash.png` | App loading/splash screen |
+
+---
+
+### 10.1 Web — Vercel Icon Deployment
+
+The icons are served as **static files** from the `public/` folder. Vite copies everything in `public/` to the build output automatically.
+
+**No extra configuration is needed.** After `npm run build` (or Vercel auto-build on push), the following URLs will work:
+
+```text
+https://<your-vercel-domain>/favicon.svg       ? browser tab icon
+https://<your-vercel-domain>/icon.png           ? PWA / apple-touch-icon
+https://<your-vercel-domain>/manifest.json      ? PWA manifest
+https://<your-vercel-domain>/og-image.jpg       ? social share preview
+```
+
+**Verify on Vercel:**
+
+1. Push to `main` — Vercel auto-deploys.
+2. Open your deployed URL in a browser ? check the tab shows the SafeCity shield icon.
+3. Share the URL on WhatsApp / Telegram ? the `og-image.jpg` splash card should appear.
+4. On a mobile browser ? tap the share menu ? **Add to Home Screen** ? the app icon appears on the home screen.
+
+> [!TIP]
+> To get a proper 32×32 `.ico` file for maximum browser compatibility, convert `icon.png` at [favicon.io](https://favicon.io/favicon-converter/) and drop the generated `favicon.ico` into `apps/web/public/`. Then add `<link rel="icon" href="/favicon.ico" sizes="any" />` **above** the SVG link in `index.html`.
+
+---
+
+### 10.2 Mobile — EAS Build / Local Build Icon Wiring
+
+The icon paths are already set in `apps/mobile/app.json`:
+
+```json
+{
+  "expo": {
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f172a"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0f172a"
+      }
+    }
+  }
+}
+```
+
+#### Option A — EAS Cloud Build (Recommended)
+
+EAS Build reads `app.json` and automatically processes icons into all required sizes (mipmap-hdpi, mipmap-xhdpi, etc.) during the cloud build.
+
+```bash
+cd apps/mobile
+
+# Install EAS CLI if not already installed
+npm install -g eas-cli
+
+# Log in with your Expo account
+eas login
+
+# Build release APK (Android)
+eas build --platform android --profile production
+```
+
+The resulting `.apk` / `.aab` will have the SafeCity shield icon on the launcher and in the app drawer.
+
+#### Option B — Local Prebuild + Gradle
+
+```bash
+cd apps/mobile
+
+# Generate native Android project (processes icons)
+npx expo prebuild --platform android --clean
+
+# Build release APK
+cd android
+.\gradlew assembleRelease       # Windows PowerShell
+# ./gradlew assembleRelease     # Linux / Mac
+
+# Output:
+# android/app/build/outputs/apk/release/app-release.apk
+```
+
+After prebuild, you can verify the icons were generated:
+
+```bash
+# Should see icon files in all density buckets
+ls android/app/src/main/res/mipmap-*
+```
+
+#### Option C — Expo Go (Development Preview)
+
+For quick testing without a full build, icon changes are reflected instantly in **Expo Go** when you run:
+
+```bash
+cd apps/mobile
+npx expo start
+```
+
+Scan the QR code in Expo Go — the splash screen will show the SafeCity branding.
+
+---
+
+### 10.3 Replacing Icons in the Future
+
+To update the icon at any time:
+
+1. Replace the image files in `apps/mobile/assets/` and `apps/web/public/`.
+2. For **web**: push to GitHub ? Vercel redeploys automatically (CDN cache clears in ~1 minute).
+3. For **mobile**: rebuild via EAS or Gradle — icons are baked into the APK/AAB at build time.
+
+**Required icon dimensions:**
+
+| Asset | Min Size | Notes |
+|-------|----------|-------|
+| `icon.png` | 1024×1024 px | Used for all mobile sizes + PWA. Must be square. |
+| `adaptive-icon.png` | 1024×1024 px | Android 8+ foreground layer. Safe zone: center 50%. |
+| `splash.png` | 1284×2778 px | Tall aspect for modern phones. Subject centered. |
+| Web favicon SVG | Vector | No size limit — scales perfectly at any resolution. |
+| `og-image.jpg` | 1200×630 px | Facebook/Twitter/WhatsApp link preview card. |
+
+> [!IMPORTANT]
+> For the **Android adaptive icon**, keep the shield graphic within the **center 72dp (˜66%)** of the 1024px canvas. Android clips the corners into a circle/rounded-square shape depending on the device launcher.
+
+---
+
+### 10.4 Browser Tab & Taskbar Verification Checklist
+
+After deploying to Vercel, confirm:
+
+- [ ] Chrome desktop tab shows the shield icon (not a generic globe)
+- [ ] Firefox address bar shows the icon
+- [ ] iOS Safari "Add to Home Screen" shows the shield icon
+- [ ] Android Chrome "Add to Home Screen" shows the adaptive icon
+- [ ] Sharing the URL on WhatsApp/Telegram shows the `og-image.jpg` splash card
+- [ ] Google Search result (after indexing) shows the favicon next to the URL
