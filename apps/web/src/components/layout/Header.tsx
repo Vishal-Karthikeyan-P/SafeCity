@@ -18,12 +18,18 @@ export function Header() {
   const debouncedSearch = useDebounce(searchVal, 300)
   const { data: searchResults, isLoading: isSearching } = useGlobalSearch(debouncedSearch)
   const [showResults, setShowResults] = useState(false)
-  
+
   const navigate = useNavigate()
 
   const toggleDark = () => {
-    document.documentElement.classList.toggle('dark')
-    setDark((d) => !d)
+    const next = !dark
+    document.documentElement.classList.toggle('dark', next)
+    try {
+      localStorage.setItem('theme', next ? 'dark' : 'light')
+    } catch {
+      // storage unavailable (private mode): toggle still works for this session
+    }
+    setDark(next)
   }
 
   const handleSearch = (e: React.FormEvent) => {
@@ -52,7 +58,7 @@ export function Header() {
             autoComplete="off"
           />
         </div>
-        
+
         {showResults && searchVal.length >= 2 && (
           <div className="absolute top-full left-0 right-0 mt-1 bg-card border rounded-md shadow-lg overflow-hidden max-h-96 overflow-y-auto">
             {isSearching ? (
@@ -62,8 +68,8 @@ export function Header() {
             ) : (
               <div className="flex flex-col">
                 {searchResults?.results?.map((result: any) => (
-                  <Link 
-                    key={result.id} 
+                  <Link
+                    key={result.id}
                     to={result.url}
                     className="p-3 border-b last:border-0 hover:bg-accent flex flex-col gap-1 transition-colors"
                   >
