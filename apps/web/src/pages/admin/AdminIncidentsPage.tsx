@@ -58,6 +58,7 @@ const VALID_NEXT_STATUSES: Record<
     { status: 'approved', label: 'Approve', variant: 'safe' },
   ],
 }
+
 function getActionIcon(opt: { status: IncidentStatus; label: string }): LucideIcon {
   if (/^(Reopen|Reset|Return)/.test(opt.label)) return RotateCcw
   switch (opt.status) {
@@ -263,7 +264,7 @@ export function AdminIncidentsPage() {
                   <th className="px-6 py-4">Location</th>
                   <th className="px-6 py-4">Date</th>
                   <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
+                  <th className="px-6 py-4 text-right">Valid Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -345,9 +346,23 @@ export function AdminIncidentsPage() {
                             )}
                           </p>
                         </td>
+                        {/* Date */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {formatDate(incident.created_at)}
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-6 py-4">
+                          <Badge variant={incident.status as any} className="whitespace-nowrap">
+                            {incident.status === 'resolved_unverified'
+                              ? 'Resolved (Unverified)'
+                              : toTitleCase(incident.status)}
+                          </Badge>
+                        </td>
+
+                        {/* Actions */}
                         <td className="px-6 py-4 align-middle">
                           <div className="flex items-center justify-end gap-2">
-                            {/* Status actions: fixed 2-column grid, equal-width buttons */}
                             {nextOptions.length > 0 && (
                               <div className="grid grid-cols-2 gap-1.5 w-[256px]">
                                 {nextOptions.map((opt) => {
@@ -356,7 +371,11 @@ export function AdminIncidentsPage() {
                                     <Button
                                       key={opt.status}
                                       variant={
-                                        opt.variant === 'safe' ? 'safe' : opt.variant === 'danger' ? 'danger' : 'outline'
+                                        opt.variant === 'safe'
+                                          ? 'safe'
+                                          : opt.variant === 'danger'
+                                            ? 'danger'
+                                            : 'outline'
                                       }
                                       size="sm"
                                       className="h-8 w-full justify-center gap-1.5 px-2 text-xs font-medium whitespace-nowrap [&:last-child:nth-child(odd)]:col-span-2"
@@ -371,7 +390,6 @@ export function AdminIncidentsPage() {
                               </div>
                             )}
 
-                            {/* Utility icons */}
                             <div className="flex items-center gap-0.5 border-l pl-2 ml-1">
                               <Button
                                 variant="ghost"
@@ -392,67 +410,6 @@ export function AdminIncidentsPage() {
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <Badge variant={incident.status as any}>
-                            {incident.status === 'resolved_unverified'
-                              ? 'Resolved (Unverified)'
-                              : toTitleCase(incident.status)}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                            {/* View Details Button */}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              onClick={() => setDetailModal(incident)}
-                              title="View Details & History"
-                            >
-                              <Eye className="w-3.5 h-3.5 mr-1" />
-                              Details
-                            </Button>
-
-                            {/* Only Valid Next-Status Actions */}
-                            {nextOptions.map((opt) => (
-                              <Button
-                                key={opt.status}
-                                variant={
-                                  opt.variant === 'safe'
-                                    ? 'safe'
-                                    : opt.variant === 'danger'
-                                      ? 'danger'
-                                      : 'outline'
-                                }
-                                size="sm"
-                                className="h-8 px-2.5 text-xs font-medium"
-                                onClick={() =>
-                                  handleOpenAction(incident, opt.status, opt.label)
-                                }
-                                title={`Change status to ${toTitleCase(opt.status)}`}
-                              >
-                                {opt.status === 'approved' && (
-                                  <CheckCircle className="w-3.5 h-3.5 mr-1" />
-                                )}
-                                {opt.status === 'rejected' && (
-                                  <XCircle className="w-3.5 h-3.5 mr-1" />
-                                )}
-                                {opt.label}
-                              </Button>
-                            ))}
-
-                            {/* Soft Delete */}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
-                              onClick={() => setDeleteModal(incident)}
-                              title="Delete Incident"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
                           </div>
                         </td>
                       </tr>
