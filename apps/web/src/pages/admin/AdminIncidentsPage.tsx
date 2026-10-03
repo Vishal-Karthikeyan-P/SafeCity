@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import {
   Search, Eye, Filter, CheckCircle, XCircle, Trash2, MapPin, Calendar,
-  User as UserIcon, ShieldAlert, History, AlertCircle, FileText, ArrowRight
+  User as UserIcon, ShieldAlert, History, AlertCircle, FileText, ArrowRight,
+  ShieldCheck, RotateCcw, Clock,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -21,6 +22,7 @@ import {
 import { SearchableCategorySelect } from '@/components/incidents/SearchableCategorySelect'
 import { formatDate, timeAgo, toTitleCase, getImageUrl } from '@/lib/utils'
 import type { Incident, IncidentStatus, SeverityLevel } from '@/types'
+import type { LucideIcon } from 'lucide-react'
 
 // Valid Admin next status transitions per specification
 const VALID_NEXT_STATUSES: Record<
@@ -55,6 +57,16 @@ const VALID_NEXT_STATUSES: Record<
     { status: 'pending', label: 'Reset to Pending', variant: 'default' },
     { status: 'approved', label: 'Approve', variant: 'safe' },
   ],
+}
+function getActionIcon(opt: { status: IncidentStatus; label: string }): LucideIcon {
+  if (/^(Reopen|Reset|Return)/.test(opt.label)) return RotateCcw
+  switch (opt.status) {
+    case 'approved': return CheckCircle
+    case 'rejected': return XCircle
+    case 'resolved': return ShieldCheck
+    case 'under_review': return Clock
+    default: return CheckCircle
+  }
 }
 
 export function AdminIncidentsPage() {
@@ -251,7 +263,7 @@ export function AdminIncidentsPage() {
                   <th className="px-6 py-4">Location</th>
                   <th className="px-6 py-4">Date</th>
                   <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-right">Valid Actions</th>
+                  <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -333,8 +345,54 @@ export function AdminIncidentsPage() {
                             )}
                           </p>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {formatDate(incident.created_at)}
+                        <td className="px-6 py-4 align-middle">
+                          <div className="flex items-center justify-end gap-2">
+                            {/* Status actions: fixed 2-column grid, equal-width buttons */}
+                            {nextOptions.length > 0 && (
+                              <div className="grid grid-cols-2 gap-1.5 w-[256px]">
+                                {nextOptions.map((opt) => {
+                                  const Icon = getActionIcon(opt)
+                                  return (
+                                    <Button
+                                      key={opt.status}
+                                      variant={
+                                        opt.variant === 'safe' ? 'safe' : opt.variant === 'danger' ? 'danger' : 'outline'
+                                      }
+                                      size="sm"
+                                      className="h-8 w-full justify-center gap-1.5 px-2 text-xs font-medium whitespace-nowrap [&:last-child:nth-child(odd)]:col-span-2"
+                                      onClick={() => handleOpenAction(incident, opt.status, opt.label)}
+                                      title={`Change status to ${toTitleCase(opt.status)}`}
+                                    >
+                                      <Icon className="w-3.5 h-3.5 shrink-0" />
+                                      {opt.label}
+                                    </Button>
+                                  )
+                                })}
+                              </div>
+                            )}
+
+                            {/* Utility icons */}
+                            <div className="flex items-center gap-0.5 border-l pl-2 ml-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                onClick={() => setDetailModal(incident)}
+                                title="View details & history"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                onClick={() => setDeleteModal(incident)}
+                                title="Delete incident"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           <Badge variant={incident.status as any}>
@@ -365,8 +423,8 @@ export function AdminIncidentsPage() {
                                   opt.variant === 'safe'
                                     ? 'safe'
                                     : opt.variant === 'danger'
-                                    ? 'danger'
-                                    : 'outline'
+                                      ? 'danger'
+                                      : 'outline'
                                 }
                                 size="sm"
                                 className="h-8 px-2.5 text-xs font-medium"
@@ -483,20 +541,20 @@ export function AdminIncidentsPage() {
 
             {(actionModal?.action === 'rejected' ||
               actionModal?.action === 'resolved') && (
-              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>
-                  A reason/note is <strong>required</strong> when setting status to{' '}
-                  {toTitleCase(actionModal.action)}.
-                </span>
-              </div>
-            )}
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>
+                    A reason/note is <strong>required</strong> when setting status to{' '}
+                    {toTitleCase(actionModal.action)}.
+                  </span>
+                </div>
+              )}
 
             <div>
               <label className="block text-sm font-medium mb-1.5">
                 Admin Note / Reason{' '}
                 {actionModal?.action === 'rejected' ||
-                actionModal?.action === 'resolved' ? (
+                  actionModal?.action === 'resolved' ? (
                   <span className="text-red-500">*</span>
                 ) : (
                   <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
@@ -507,8 +565,8 @@ export function AdminIncidentsPage() {
                   actionModal?.action === 'resolved'
                     ? 'State how the hazard was resolved / verified...'
                     : actionModal?.action === 'rejected'
-                    ? 'State why this report was rejected...'
-                    : 'Internal notes or message for records...'
+                      ? 'State why this report was rejected...'
+                      : 'Internal notes or message for records...'
                 }
                 value={adminNote}
                 onChange={(e) => {
@@ -537,8 +595,8 @@ export function AdminIncidentsPage() {
                 actionModal?.action === 'approved' || actionModal?.action === 'resolved'
                   ? 'safe'
                   : actionModal?.action === 'rejected'
-                  ? 'danger'
-                  : 'default'
+                    ? 'danger'
+                    : 'default'
               }
               onClick={handleConfirmAction}
               loading={isUpdating}
@@ -638,8 +696,8 @@ function AdminIncidentDetailDialog({
                     opt.variant === 'safe'
                       ? 'safe'
                       : opt.variant === 'danger'
-                      ? 'danger'
-                      : 'outline'
+                        ? 'danger'
+                        : 'outline'
                   }
                   className="h-8 text-xs font-medium"
                   onClick={() => onAction(opt.status, opt.label)}
@@ -754,8 +812,8 @@ function AdminIncidentDetailDialog({
                             req.status === 'approved'
                               ? 'approved'
                               : req.status === 'rejected'
-                              ? 'rejected'
-                              : 'pending'
+                                ? 'rejected'
+                                : 'pending'
                           }
                         >
                           Request: {toTitleCase(req.status)}

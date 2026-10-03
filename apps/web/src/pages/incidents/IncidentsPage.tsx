@@ -74,11 +74,14 @@ export function IncidentsPage() {
       {/* Results */}
       {isLoading ? (
         <div className={cn(
-          'grid gap-4',
+          'grid items-stretch gap-4',
           viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'
         )}>
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="skeleton h-64 w-full" />
+            <div
+              key={i}
+              className={cn('skeleton w-full rounded-xl', viewMode === 'grid' ? 'h-[380px]' : 'h-28')}
+            />
           ))}
         </div>
       ) : incidents.length === 0 ? (
@@ -97,7 +100,7 @@ export function IncidentsPage() {
       ) : (
         <>
           <div className={cn(
-            'grid gap-4',
+            'grid items-stretch gap-4',
             viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1'
           )}>
             {incidents.map((incident) => (
