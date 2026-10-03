@@ -86,6 +86,20 @@ export function useCategories() {
 }
 
 // ── Auto-severity preview ─────────────────────────────────────
+export type SeverityPreview = { severity: string; score: number }
+
+// Plain fetcher: used by the hook below AND called directly at submit time
+export async function previewSeverity(
+  categoryId: string,
+  title: string,
+  description: string
+): Promise<SeverityPreview> {
+  const res = await api.get('/incidents/preview-severity', {
+    params: { category_id: categoryId, title, description },
+  })
+  return res.data as SeverityPreview
+}
+
 export function usePreviewSeverity(
   categoryId: string | undefined,
   title: string,
@@ -93,15 +107,11 @@ export function usePreviewSeverity(
 ) {
   const enabled = !!(categoryId && title.length >= 3)
   return useQuery({
+    // all three inputs are in the key, so any change refetches
     queryKey: ['preview-severity', categoryId, title, description],
-    queryFn: async () => {
-      const res = await api.get('/incidents/preview-severity', {
-        params: { category_id: categoryId || '', title, description },
-      })
-      return res.data as { severity: string; score: number }
-    },
+    queryFn: () => previewSeverity(categoryId!, title, description),
     enabled,
-    staleTime: 5000,        // cache 5s to avoid hammering on every keystroke
+    staleTime: 5000,
     placeholderData: (prev) => prev,
   })
 }

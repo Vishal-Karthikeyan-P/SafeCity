@@ -256,10 +256,10 @@ export function AdminIncidentsPage() {
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+            <table className="w-full min-w-[1100px] text-sm text-left">
               <thead className="bg-muted/50 text-muted-foreground font-medium border-b">
                 <tr>
-                  <th className="px-6 py-4">Incident</th>
+                  <th className="px-6 py-4 min-w-[260px]">Incident</th>
                   <th className="px-6 py-4">Reporter</th>
                   <th className="px-6 py-4">Location</th>
                   <th className="px-6 py-4">Date</th>

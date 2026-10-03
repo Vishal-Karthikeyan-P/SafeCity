@@ -8,17 +8,26 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { IncidentMap } from '@/components/map/IncidentMap'
-import { useCreateIncident, useUploadImages, usePreviewSeverity } from '@/api/incidents'
+import { useCreateIncident, useUploadImages, usePreviewSeverity, previewSeverity } from '@/api/incidents'
 import { SearchableCategorySelect } from '@/components/incidents/SearchableCategorySelect'
 import { reportIncidentSchema, type ReportIncidentValues } from '@/lib/schemas'
 import { toast } from 'sonner'
 
 // Severity appearance helpers
 const SEVERITY_STYLES: Record<string, { bg: string; text: string; dot: string; label: string }> = {
-  low:      { bg: 'bg-green-50',  text: 'text-green-700',  dot: 'bg-green-500',  label: 'Low' },
-  medium:   { bg: 'bg-amber-50',  text: 'text-amber-700',  dot: 'bg-amber-500',  label: 'Medium' },
-  high:     { bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500', label: 'High' },
-  critical: { bg: 'bg-red-50',    text: 'text-red-700',    dot: 'bg-red-500',    label: 'Critical' },
+  low: { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500', label: 'Low' },
+  medium: { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', label: 'Medium' },
+  high: { bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500', label: 'High' },
+  critical: { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500', label: 'Critical' },
+}
+
+function useDebouncedValue<T>(value: T, delay = 600): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
 }
 
 function SeverityPreviewBadge({ severity, score, loading }: { severity?: string; score?: number; loading?: boolean }) {
@@ -68,14 +77,19 @@ export function ReportIncidentPage() {
 
   // Watch fields for live severity preview
   const watchedCategoryId = watch('category_id')
-  const watchedTitle       = watch('title') ?? ''
+  const watchedTitle = watch('title') ?? ''
   const watchedDescription = watch('description') ?? ''
 
-  // Live auto-severity preview (debounced via staleTime on the hook)
+  // Category changes fire immediately; title/description wait until typing pauses.
+  const debouncedTitle = useDebouncedValue(watchedTitle.trim())
+  const debouncedDescription = useDebouncedValue(watchedDescription.trim())
+  const isTyping =
+    watchedTitle.trim() !== debouncedTitle || watchedDescription.trim() !== debouncedDescription
+
   const { data: severityPreview, isFetching: isSeverityLoading } = usePreviewSeverity(
     watchedCategoryId,
-    watchedTitle,
-    watchedDescription,
+    debouncedTitle,
+    debouncedDescription,
   )
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,6 +145,14 @@ export function ReportIncidentPage() {
 
   const onSubmit = async (data: ReportIncidentValues) => {
     try {
+      // Final classification with the exact submitted values (the live preview may lag by the debounce)
+      try {
+        const final = await previewSeverity(data.category_id, data.title, data.description)
+        if (final?.severity) toast.info(`Final severity: ${final.severity.charAt(0).toUpperCase()}${final.severity.slice(1)}`)
+      } catch {
+        // Preview failure must not block submission; the backend still classifies on create.
+      }
+
       // severity is NOT sent — backend auto-computes it
       const incident = await createIncident(data)
       if (images.length > 0) {
@@ -196,11 +218,13 @@ export function ReportIncidentPage() {
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
                   System-Determined Severity
                 </p>
-                <SeverityPreviewBadge
-                  severity={severityPreview?.severity}
-                  score={severityPreview?.score}
-                  loading={isSeverityLoading && !severityPreview}
-                />
+                <div className={isSeverityLoading || isTyping ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
+                  <SeverityPreviewBadge
+                    severity={severityPreview?.severity}
+                    score={severityPreview?.score}
+                    loading={(isSeverityLoading || isTyping) && !severityPreview}
+                  />
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Severity is automatically calculated based on category, title, and description.
                 </p>
@@ -219,7 +243,7 @@ export function ReportIncidentPage() {
                   : <><MapPin className="w-4 h-4 mr-1" /> Use My Location</>}
               </Button>
             </div>
-            
+
             <p className="text-sm text-muted-foreground">Click on the map to set the exact location.</p>
 
             <div className={`rounded-xl overflow-hidden border ${errors.location_lat ? 'border-destructive' : ''}`}>
@@ -248,7 +272,7 @@ export function ReportIncidentPage() {
         <Card>
           <CardContent className="p-6 space-y-6">
             <h2 className="text-lg font-semibold border-b pb-2">3. Evidence &amp; Options</h2>
-            
+
             <div>
               <label className="block text-sm font-medium mb-1.5">Images (Up to 5)</label>
               <div className="flex flex-wrap gap-4">
@@ -264,7 +288,7 @@ export function ReportIncidentPage() {
                     </button>
                   </div>
                 ))}
-                
+
                 {images.length < 5 && (
                   <label className="w-24 h-24 rounded-lg border-2 border-dashed border-muted-foreground/30 flex flex-col items-center justify-center cursor-pointer hover:bg-accent transition-colors">
                     <ImageIcon className="w-6 h-6 text-muted-foreground mb-1" />
