@@ -20,6 +20,7 @@ from app.schemas.incident import (
 from app.schemas.notification import AdminStatsResponse
 from app.schemas.user import UserListResponse
 from app.services.incident_service import IncidentService
+from app.services.alert_service import AlertService
 from app.schemas.alert import AlertCreate, AlertSchema
 from app.schemas.learning import ArticleCreate, ArticleUpdate, ArticleSchema, ArticleListResponse
 from app.repositories.alert_repository import AlertRepository
@@ -221,23 +222,8 @@ async def create_alert(
     admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    expires_at = None
-    if data.expires_in_hours:
-        expires_at = datetime.now(timezone.utc) + timedelta(hours=data.expires_in_hours)
-    
-    alert = CommunityAlert(
-        title=data.title,
-        message=data.message,
-        alert_type=data.alert_type,
-        location_lat=data.location_lat,
-        location_lng=data.location_lng,
-        radius_km=data.radius_km,
-        expires_at=expires_at,
-    )
-    db.add(alert)
-    await db.commit()
-    await db.refresh(alert)
-    return alert
+    service = AlertService(db)
+    return await service.create_and_dispatch_alert(data)
 
 @router.delete("/alerts/{alert_id}", status_code=204)
 async def delete_alert(

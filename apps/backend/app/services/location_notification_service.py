@@ -46,7 +46,22 @@ class LocationNotificationService:
         Main entry point — called when the user's location changes.
         Returns a summary of what was triggered.
         """
-        triggered = {"nearby_incidents": 0, "unsafe_area": False}
+        triggered = {"nearby_incidents": 0, "unsafe_area": False, "community_alerts": 0}
+
+        # 0. Update user's last known location in DB for geographic alert targeting
+        try:
+            from geoalchemy2.shape import from_shape
+            from shapely.geometry import Point
+            from app.models.user import User, utcnow
+
+            user = await self.db.get(User, user_id)
+            if user:
+                user.last_location_lat = lat
+                user.last_location_lng = lng
+                user.last_location_geom = from_shape(Point(lng, lat), srid=4326)
+                user.location_updated_at = utcnow()
+        except Exception as e:
+            logger.warning("Failed updating user last location: %s", e)
 
         # 1. Check for nearby incidents (approved, within 5km)
         nearby_count = await self._check_nearby_incidents(
@@ -57,6 +72,10 @@ class LocationNotificationService:
         # 2. Check if user is in an unsafe area
         unsafe = await self._check_unsafe_area(user_id, user_name, push_token, lat, lng)
         triggered["unsafe_area"] = unsafe
+
+        # 3. Check for active location-based community alerts in this area
+        alerts_count = await self._check_active_location_alerts(user_id, push_token, lat, lng)
+        triggered["community_alerts"] = alerts_count
 
         await self.db.commit()
         return triggered
@@ -179,3 +198,73 @@ class LocationNotificationService:
                 data={"type": "unsafe_area", "lat": lat, "lng": lng, "score": score},
             )
         return True
+
+    async def _check_active_location_alerts(
+        self,
+        user_id: str,
+        push_token: Optional[str],
+        lat: float,
+        lng: float,
+    ) -> int:
+        """
+        Check for any active location-based community alerts whose radius
+        covers the user's current location, and send notification if not already delivered.
+        """
+        try:
+            stmt = text("""
+                SELECT a.id, a.title, a.message, a.alert_type,
+                       ST_Distance(
+                           a.location_geom::geography,
+                           ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography
+                       ) AS dist_m,
+                       a.radius_km
+                FROM community_alerts a
+                WHERE a.is_active = TRUE
+                  AND a.target_scope = 'location_based'
+                  AND a.location_geom IS NOT NULL
+                  AND (a.expires_at IS NULL OR a.expires_at > NOW())
+                  AND ST_DWithin(
+                      a.location_geom::geography,
+                      ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
+                      a.radius_km * 1000.0
+                  )
+            """)
+            res = await self.db.execute(stmt, {"lat": lat, "lng": lng})
+            matching_alerts = res.fetchall()
+        except Exception as e:
+            logger.warning("Active location alerts query failed: %s", e)
+            return 0
+
+        notified = 0
+        for row in matching_alerts:
+            alert_id, title, message, alert_type, dist_m, radius_km = row
+            dedup_key = f"community_alert:{alert_id}:{user_id}"
+            if await self.notif_repo.has_recent_dedup(user_id, dedup_key, hours=72):
+                continue
+
+            notif = await self.notif_repo.create(
+                user_id=user_id,
+                title=f"🚨 {title}",
+                message=message,
+                type=NotificationType.COMMUNITY_ALERT,
+                metadata={
+                    "alert_id": alert_id,
+                    "alert_type": alert_type.value if hasattr(alert_type, "value") else str(alert_type),
+                    "target_scope": "location_based",
+                    "lat": lat,
+                    "lng": lng,
+                    "radius_km": radius_km,
+                },
+                dedup_key=dedup_key,
+            )
+            if notif and push_token:
+                await send_push_notification(
+                    push_token=push_token,
+                    title=f"📍 {title}",
+                    body=message,
+                    data={"type": "community_alert", "alert_id": alert_id, "target_scope": "location_based"},
+                )
+            notified += 1
+
+        return notified
+

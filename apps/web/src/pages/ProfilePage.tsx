@@ -10,6 +10,7 @@ import { useAuthStore } from '@/store/auth'
 import { useUpdateProfile, useChangePassword, useUploadAvatar, useEmergencyContacts, useDeleteEmergencyContact, useAddEmergencyContact, useDeleteAccount } from '@/api/user'
 import { updateProfileSchema, changePasswordSchema, type UpdateProfileValues, type ChangePasswordValues } from '@/lib/schemas'
 import { getImageUrl } from '@/lib/utils'
+import { EmergencyContactsManager } from '@/components/contacts/EmergencyContactsManager'
 
 export function ProfilePage() {
   const user = useAuthStore((s) => s.user)
@@ -151,10 +152,16 @@ export function ProfilePage() {
             </CardContent>
           </Card>
           
+          {/* User-to-User In-App Emergency Contacts */}
+          <div className="mt-6">
+            <EmergencyContactsManager />
+          </div>
+
+          {/* Offline Phone Contacts (Phonebook fallback) */}
           <Card className="mt-6">
             <CardHeader>
-              <CardTitle>Emergency Contacts</CardTitle>
-              <CardDescription>People to notify during an SOS emergency (max 5).</CardDescription>
+              <CardTitle className="text-base font-semibold">Offline Phone Contacts (Non-App Users)</CardTitle>
+              <CardDescription>Optional external phone numbers to notify during an SOS emergency (max 5).</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {contactsLoading ? (

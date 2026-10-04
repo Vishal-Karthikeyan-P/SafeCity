@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { BarChart3, Users, AlertTriangle, Tag, Shield, ChevronRight, LogOut, BookOpen } from 'lucide-react'
+import { BarChart3, Users, AlertTriangle, Tag, Shield, ChevronRight, LogOut, BookOpen, BellRing } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useLogout } from '@/api/auth'
 import { Button } from '@/components/ui/button'
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 const adminNav = [
   { href: '/admin', label: 'Overview', icon: BarChart3, exact: true },
   { href: '/admin/incidents', label: 'Incidents', icon: AlertTriangle },
+  { href: '/admin/alerts', label: 'Community Alerts', icon: BellRing },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/categories', label: 'Categories', icon: Tag },
   { href: '/admin/learning', label: 'Learning Hub', icon: BookOpen },

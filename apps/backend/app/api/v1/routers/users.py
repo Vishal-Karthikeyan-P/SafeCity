@@ -6,6 +6,7 @@ import os
 import uuid
 
 import aiofiles
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -124,4 +125,31 @@ async def delete_emergency_contact(
     service = EmergencyService(db)
     await service.delete_contact(contact_id, current_user.id)
     return None
+
+
+class UserLocationUpdate(BaseModel):
+    lat: float
+    lng: float
+
+
+@router.post("/me/location", status_code=204)
+async def update_my_location(
+    data: UserLocationUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Update the authenticated user's current known coordinates.
+    Only called when the user has granted location permission.
+    """
+    from geoalchemy2.shape import from_shape
+    from shapely.geometry import Point
+    from app.models.user import utcnow
+
+    current_user.last_location_lat = data.lat
+    current_user.last_location_lng = data.lng
+    current_user.last_location_geom = from_shape(Point(data.lng, data.lat), srid=4326)
+    current_user.location_updated_at = utcnow()
+    await db.commit()
+
 

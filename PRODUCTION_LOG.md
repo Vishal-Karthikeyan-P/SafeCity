@@ -4,6 +4,48 @@ All platform updates, new features, category expansions, database seeding enhanc
 
 ---
 
+## 📅 Release Version: 1.7.1 (October 2026) — Two-Mode Admin Community Alerts & Web Emergency Contacts 📢📍
+
+### 🌟 New Features & Enhancements
+
+1. **Two-Mode Admin Community Alerts (`/admin/alerts` & `AlertService`)**
+   - **Mode A: General / Broadcast Alert (`target_scope: 'all_users'`)**:
+     - Allows administrators to broadcast high-priority notices, system updates, and city-wide emergency advisories to all registered, active citizens.
+     - No coordinates or address required.
+     - Dispatches through the unified in-app notification infrastructure (`type: NotificationType.COMMUNITY_ALERT`) and mobile push notifications via Expo Push API.
+   - **Mode B: Location-Based Alert (`target_scope: 'location_based'`)**:
+     - Allows administrators to target hazardous zones by selecting coordinates and specifying a coverage radius (km).
+     - **No street address required**; admins pick locations directly on an interactive Leaflet map preview with dynamic circular coverage overlay (`L.circle`).
+     - **PostGIS Proximity Filtering**: Queries active users whose last known location falls within the hazard radius using `ST_DWithin(users.last_location_geom::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius_m)`.
+     - **Location Permission & Availability Compliance**: Citizens who have not granted location permissions or have no known coordinates (`last_location_geom IS NULL`) are strictly excluded from location-based delivery.
+     - **Deduplication Protection**: Prevents duplicate deliveries via unique compound deduplication keys (`community_alert:{alert_id}:{user_id}`).
+     - **Dynamic Catch-Up Delivery**: When mobile or web users submit location updates via `/contacts/location-check`, the system automatically checks for active geographic alerts in their new zone and delivers any previously unreceived warnings.
+
+2. **Web Emergency Contacts (`/profile` & `EmergencyContactsManager`)**
+   - Implemented reciprocal user-to-user emergency contacts inside the Web application under `/profile`.
+   - **Search SafeCity Citizens**: Debounced search by full name or email across all registered citizens.
+   - **Send Connection Requests**: Option to include an introduction / invitation message.
+   - **Incoming & Outgoing Request Management**: Accept or decline incoming requests; review or cancel pending sent requests.
+   - **Connected Contacts Hub**: View accepted SafeCity contacts who automatically receive SOS emergency coordinates.
+   - **Cross-Platform Synchronization**: Web and Mobile operate against the exact same `/api/v1/contacts` backend endpoints and `contact_requests` table, guaranteeing real-time state parity.
+   - Retained offline phonebook fallback for non-app emergency contacts.
+
+3. **Database Migration 007 (`007_location_alerts.py`)**
+   - `users`: Added `last_location_lat` (Float), `last_location_lng` (Float), `last_location_geom` (PostGIS Geography Point 4326), `location_updated_at` (DateTime), with GiST spatial index.
+   - `community_alerts`: Added `target_scope` (VARCHAR(30), default `'all_users'`) with index.
+
+### 🔧 Files Changed
+
+| Component | Files Changed |
+|---|---|
+| **Backend Migrations & Models** | `migrations/versions/007_location_alerts.py`, `models/user.py`, `models/alert.py`, `schemas/alert.py` |
+| **Backend Services & Routers** | `services/alert_service.py`, `services/location_notification_service.py`, `api/v1/routers/admin.py`, `api/v1/routers/users.py` |
+| **Web Frontend API & Components** | `apps/web/src/api/alerts.ts`, `apps/web/src/api/contacts.ts`, `apps/web/src/pages/admin/AdminAlertsPage.tsx`, `apps/web/src/components/contacts/EmergencyContactsManager.tsx`, `apps/web/src/pages/ProfilePage.tsx` |
+| **Web Navigation & Routing** | `apps/web/src/components/layout/AdminLayout.tsx`, `apps/web/src/App.tsx` |
+| **Verification & Tests** | `apps/backend/test_alerts_and_contacts.py` |
+
+---
+
 ## 📅 Release Version: 1.7.0 (October 2026) — User-to-User Contacts, Dark Mode, Push Notifications & Safe Areas 📱🌙
 
 ### 🌟 New Features & Enhancements

@@ -32,6 +32,10 @@ class CommunityAlert(Base):
     alert_type: Mapped[AlertType] = mapped_column(
         sa.Enum(AlertType), nullable=False, default=AlertType.SYSTEM_ANNOUNCEMENT, index=True
     )
+    # Scope of delivery: "all_users" (broadcast) or "location_based"
+    target_scope: Mapped[str] = mapped_column(
+        sa.String(30), nullable=False, default="all_users", index=True
+    )
     
     # Optional geospatial area for the alert (radius around a point)
     location_lat: Mapped[Optional[float]] = mapped_column(sa.Float, nullable=True)

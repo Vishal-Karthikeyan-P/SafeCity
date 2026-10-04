@@ -23,6 +23,7 @@ import { AdminIncidentsPage } from '@/pages/admin/AdminIncidentsPage'
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage'
 import { AdminCategoriesPage } from '@/pages/admin/AdminCategoriesPage'
 import { AdminLearningPage } from '@/pages/admin/AdminLearningPage'
+import { AdminAlertsPage } from '@/pages/admin/AdminAlertsPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { LearningHubPage } from '@/pages/LearningHubPage'
 import { AlertsPage } from '@/pages/AlertsPage'
@@ -96,6 +97,7 @@ export default function App() {
         >
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/admin/incidents" element={<AdminIncidentsPage />} />
+          <Route path="/admin/alerts" element={<AdminAlertsPage />} />
           <Route path="/admin/users" element={<AdminUsersPage />} />
           <Route path="/admin/categories" element={<AdminCategoriesPage />} />
           <Route path="/admin/learning" element={<AdminLearningPage />} />

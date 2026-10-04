@@ -23,6 +23,7 @@ import { Header } from '../../components/common/Header';
 import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
+import { CategorySelect } from '@/components/common/CategorySelect';
 import { IncidentsApi, CreateIncidentPayload } from '../../api/incidents';
 import { Colors } from '../../constants/colors';
 import { DEFAULT_COORDS } from '../../config/env';
@@ -73,13 +74,6 @@ export const ReportScreen: React.FC<Props> = ({ navigation }) => {
     queryKey: ['incident-categories'],
     queryFn: IncidentsApi.getCategories,
   });
-
-  // Default to first category when loaded
-  useEffect(() => {
-    if (categories.length > 0 && !categoryId) {
-      setCategoryId(categories[0].id);
-    }
-  }, [categories, categoryId]);
 
   // Acquire current GPS coordinates
   const acquireLocation = async () => {
@@ -195,6 +189,7 @@ export const ReportScreen: React.FC<Props> = ({ navigation }) => {
     setPhotoUri(null);
     setSeverityPreview(null);
     setErrors({});
+    setCategoryId('');
   };
 
   const validate = () => {
@@ -294,9 +289,9 @@ export const ReportScreen: React.FC<Props> = ({ navigation }) => {
   const getSeverityColors = (sev: string) => {
     switch (sev) {
       case 'critical': return { bg: '#fee2e2', text: '#b91c1c', dot: Colors.criticalText };
-      case 'high':     return { bg: '#ffedd5', text: '#c2410c', dot: Colors.highRiskText };
-      case 'medium':   return { bg: '#fef3c7', text: '#b45309', dot: Colors.moderateText };
-      default:         return { bg: '#dcfce7', text: '#15803d', dot: Colors.safeText };
+      case 'high': return { bg: '#ffedd5', text: '#c2410c', dot: Colors.highRiskText };
+      case 'medium': return { bg: '#fef3c7', text: '#b45309', dot: Colors.moderateText };
+      default: return { bg: '#dcfce7', text: '#15803d', dot: Colors.safeText };
     }
   };
 
@@ -379,43 +374,17 @@ export const ReportScreen: React.FC<Props> = ({ navigation }) => {
         />
 
         {/* Category Picker */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Incident Category *</Text>
-          {isCategoriesLoading ? (
-            <Text style={styles.loadingText}>Loading categories...</Text>
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoriesRow}
-            >
-              {categories.map((cat) => {
-                const isSelected = categoryId === cat.id;
-                return (
-                  <TouchableOpacity
-                    key={cat.id}
-                    style={[
-                      styles.categoryChip,
-                      isSelected && styles.categoryChipSelected,
-                    ]}
-                    onPress={() => setCategoryId(cat.id)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.categoryChipIcon}>{cat.icon}</Text>
-                    <Text
-                      style={[
-                        styles.categoryChipText,
-                        isSelected && styles.categoryChipTextSelected,
-                      ]}
-                    >
-                      {cat.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          )}
-        </View>
+        <CategorySelect
+          label="Incident Category *"
+          categories={categories}
+          value={categoryId}
+          onChange={(id) => {
+            setCategoryId(id);
+            if (errors.category) setErrors((prev) => ({ ...prev, category: undefined }));
+          }}
+          loading={isCategoriesLoading}
+          error={errors.category}
+        />
 
         {/* Auto-Severity Preview */}
         {categoryId && title.trim().length >= 3 ? (

@@ -8,6 +8,7 @@ from typing import List, Optional
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from geoalchemy2 import Geography
 
 from app.core.database import Base
 
@@ -43,6 +44,16 @@ class User(Base):
     )
     # Expo push notification token — registered by mobile client on login/startup
     push_token: Mapped[Optional[str]] = mapped_column(sa.String(512), nullable=True)
+
+    # Last known location (for location-based alert targeting; null if permission not granted)
+    last_location_lat: Mapped[Optional[float]] = mapped_column(sa.Float, nullable=True)
+    last_location_lng: Mapped[Optional[float]] = mapped_column(sa.Float, nullable=True)
+    last_location_geom: Mapped[Optional[object]] = mapped_column(
+        Geography(geometry_type="POINT", srid=4326), nullable=True
+    )
+    location_updated_at: Mapped[Optional[datetime]] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
 
     # Relationships
     profile: Mapped[Optional["UserProfile"]] = relationship(

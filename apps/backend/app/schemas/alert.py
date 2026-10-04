@@ -7,6 +7,7 @@ class AlertBase(BaseModel):
     title: str = Field(..., max_length=255)
     message: str
     alert_type: AlertType
+    target_scope: Optional[str] = "all_users"  # "all_users" or "location_based"
     location_lat: Optional[float] = None
     location_lng: Optional[float] = None
     radius_km: Optional[float] = None
@@ -19,6 +20,7 @@ class AlertSchema(AlertBase):
     is_active: bool
     expires_at: Optional[datetime]
     created_at: datetime
+    recipients_count: Optional[int] = None
 
     class Config:
         from_attributes = True

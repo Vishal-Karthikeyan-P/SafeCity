@@ -13,8 +13,8 @@ SafeCity is a **complete, production-ready smart city safety platform** that emp
 | 📋 **Incident Reporting** | Map-based location selection, multi-image upload, severity grading, anonymous reporting |
 | 🔍 **Global Search** | Cross-entity search across incidents and learning articles |
 | 📚 **Learning Hub** | Categorized safety guides with Do's/Don'ts, emergency steps, helplines, legal info |
-| 🚨 **Community Alerts** | Real-time active safety alerts (high risk areas, emergency notices, system announcements) |
-| 🆘 **SOS & Emergency** | SOS trigger with GPS coordinates, emergency contact management (up to 5 contacts) |
+| 🚨 **Community Alerts** | Two-mode alert system: City-wide broadcasts & PostGIS location-radius alerts with live map preview |
+| 🆘 **SOS & Emergency** | User-to-user in-app emergency contact network with live GPS alerting, plus offline phonebook fallback |
 | 📊 **Admin Dashboard** | Full analytics (Recharts), moderation tools, user management, content management (Articles & Alerts) |
 | 📱 **Mobile App** | React Native (Expo) Android app with auth, safe route planner, safety details, live GPS guidance, route deviation alerts, incident reporting, and notifications |
 
