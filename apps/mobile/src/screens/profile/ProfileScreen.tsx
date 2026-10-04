@@ -9,6 +9,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,17 +18,20 @@ import { Card } from '../../components/common/Card';
 import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
+import { SafeScreen } from '../../components/common/SafeScreen';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MainStackParamList } from '../../types/navigation';
 import { UsersApi, UpdateProfilePayload } from '../../api/users';
+import { contactRequestsApi } from '../../api/contactRequests';
 import { useAuthStore } from '../../store/authStore';
-import { Colors } from '../../constants/colors';
+import { useTheme } from '../../store/themeStore';
 
 export const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const queryClient = useQueryClient();
   const { user: authUser, logout, updateUser } = useAuthStore();
+  const { theme, isDark, setTheme, colors } = useTheme();
 
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [fullName, setFullName] = useState('');
@@ -46,6 +50,18 @@ export const ProfileScreen: React.FC = () => {
     queryKey: ['my-profile'],
     queryFn: UsersApi.getMyProfile,
     initialData: authUser || undefined,
+  });
+
+  // Fetch SafeCity accepted emergency contacts count
+  const { data: acceptedContacts = [] } = useQuery({
+    queryKey: ['accepted-contacts'],
+    queryFn: contactRequestsApi.getAcceptedContacts,
+  });
+
+  // Fetch pending incoming contact requests count
+  const { data: incomingRequests = [] } = useQuery({
+    queryKey: ['incoming-contact-requests'],
+    queryFn: contactRequestsApi.getIncomingRequests,
   });
 
   const openEditModal = () => {
@@ -113,26 +129,26 @@ export const ProfileScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeScreen backgroundColor={colors.background}>
       <Header
         title="My Profile"
         subtitle="Account settings & safety contacts"
         rightAction={{
-          icon: <Ionicons name="create-outline" size={22} color={Colors.primary} />,
+          icon: <Ionicons name="create-outline" size={22} color={colors.primary} />,
           onPress: openEditModal,
         }}
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Profile Card */}
-        <Card style={styles.profileCard}>
+        <Card style={[styles.profileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
+            <View style={[styles.avatar, { backgroundColor: colors.primary, shadowColor: colors.primary }]}>
               <Text style={styles.avatarInitials}>{getInitials(user?.full_name)}</Text>
             </View>
             <View style={styles.profileDetails}>
-              <Text style={styles.profileName}>{user?.full_name || 'Citizen'}</Text>
-              <Text style={styles.profileEmail}>{user?.email}</Text>
+              <Text style={[styles.profileName, { color: colors.textPrimary }]}>{user?.full_name || 'Citizen'}</Text>
+              <Text style={[styles.profileEmail, { color: colors.textSecondary }]}>{user?.email}</Text>
               <View style={styles.badgeRow}>
                 <Badge
                   label={user?.role === 'admin' ? 'Admin' : 'Verified Citizen'}
@@ -144,8 +160,8 @@ export const ProfileScreen: React.FC = () => {
           </View>
 
           {user?.profile?.bio ? (
-            <View style={styles.bioBox}>
-              <Text style={styles.bioText}>{user.profile.bio}</Text>
+            <View style={[styles.bioBox, { backgroundColor: colors.background }]}>
+              <Text style={[styles.bioText, { color: colors.textSecondary }]}>{user.profile.bio}</Text>
             </View>
           ) : null}
 
@@ -154,44 +170,145 @@ export const ProfileScreen: React.FC = () => {
             variant="outline"
             size="sm"
             onPress={openEditModal}
-            icon={<Ionicons name="pencil" size={14} color={Colors.textPrimary} />}
+            icon={<Ionicons name="pencil" size={14} color={colors.textPrimary} />}
             style={styles.editBtn}
           />
         </Card>
 
+        {/* Theme Settings Card (Dark Mode) */}
+        <Card style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>Appearance & Theme</Text>
+          <View style={styles.themeRow}>
+            <View style={styles.themeInfo}>
+              <Ionicons
+                name={isDark ? 'moon' : 'sunny'}
+                size={22}
+                color={isDark ? '#f59e0b' : colors.primary}
+              />
+              <View style={{ marginLeft: 12 }}>
+                <Text style={[styles.themeLabel, { color: colors.textPrimary }]}>
+                  {isDark ? 'Dark Mode' : 'Light Mode'}
+                </Text>
+                <Text style={[styles.themeSubLabel, { color: colors.textMuted }]}>
+                  {isDark ? 'Sleek, low-light viewing' : 'High clarity bright theme'}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={isDark}
+              onValueChange={(val) => setTheme(val ? 'dark' : 'light')}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={Platform.OS === 'android' ? (isDark ? colors.surface : '#ffffff') : undefined}
+            />
+          </View>
+
+          <View style={[styles.themePillsRow, { borderTopColor: colors.borderLight }]}>
+            {(['light', 'dark', 'system'] as const).map((mode) => (
+              <TouchableOpacity
+                key={mode}
+                onPress={() => setTheme(mode)}
+                style={[
+                  styles.themePill,
+                  {
+                    backgroundColor: theme === mode ? colors.primaryLight : colors.background,
+                    borderColor: theme === mode ? colors.primary : colors.border,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.themePillText,
+                    {
+                      color: theme === mode ? colors.primaryDark : colors.textSecondary,
+                      fontWeight: theme === mode ? '700' : '500',
+                    },
+                  ]}
+                >
+                  {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Card>
+
+        {/* SafeCity User Emergency Contacts (User-to-User Feature) */}
+        <Card style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="people" size={20} color={colors.primary} />
+              <Text style={[styles.sectionHeading, { color: colors.textPrimary, marginBottom: 0 }]}>
+                SafeCity Contacts
+              </Text>
+            </View>
+            {incomingRequests.length > 0 && (
+              <View style={[styles.notifBadge, { backgroundColor: colors.alert }]}>
+                <Text style={styles.notifBadgeText}>{incomingRequests.length} pending</Text>
+              </View>
+            )}
+          </View>
+          <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
+            Verified SafeCity citizens who automatically receive your real-time GPS location and SOS alerts.
+          </Text>
+
+          <View style={[styles.contactStatsRow, { backgroundColor: colors.background }]}>
+            <View style={styles.contactStatItem}>
+              <Text style={[styles.contactStatNumber, { color: colors.primary }]}>
+                {acceptedContacts.length}
+              </Text>
+              <Text style={[styles.contactStatLabel, { color: colors.textMuted }]}>Connected</Text>
+            </View>
+            <View style={[styles.verticalDivider, { backgroundColor: colors.border }]} />
+            <View style={styles.contactStatItem}>
+              <Text style={[styles.contactStatNumber, { color: incomingRequests.length > 0 ? colors.alert : colors.textPrimary }]}>
+                {incomingRequests.length}
+              </Text>
+              <Text style={[styles.contactStatLabel, { color: colors.textMuted }]}>Requests</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.manageContactsBtn, { backgroundColor: colors.primary }]}
+            onPress={() => navigation.navigate('SafeCityContacts')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="person-add-outline" size={17} color="#ffffff" />
+            <Text style={styles.manageContactsBtnText}>Find & Manage Emergency Contacts</Text>
+          </TouchableOpacity>
+        </Card>
+
         {/* Contact & Location Info */}
-        <Card style={styles.infoCard}>
-          <Text style={styles.sectionHeading}>Personal Details</Text>
+        <Card style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>Personal Details</Text>
 
           <View style={styles.infoRow}>
-            <Ionicons name="call-outline" size={18} color={Colors.textSecondary} />
+            <Ionicons name="call-outline" size={18} color={colors.textSecondary} />
             <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Phone Number</Text>
-              <Text style={styles.infoValue}>
+              <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Phone Number</Text>
+              <Text style={[styles.infoValue, { color: colors.textPrimary }]}>
                 {user?.profile?.phone || 'Not provided'}
               </Text>
             </View>
           </View>
 
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
 
           <View style={styles.infoRow}>
-            <Ionicons name="location-outline" size={18} color={Colors.textSecondary} />
+            <Ionicons name="location-outline" size={18} color={colors.textSecondary} />
             <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>City / Location</Text>
-              <Text style={styles.infoValue}>
+              <Text style={[styles.infoLabel, { color: colors.textMuted }]}>City / Location</Text>
+              <Text style={[styles.infoValue, { color: colors.textPrimary }]}>
                 {user?.profile?.city || 'Coimbatore, Tamil Nadu'}
               </Text>
             </View>
           </View>
 
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
 
           <View style={styles.infoRow}>
-            <Ionicons name="calendar-outline" size={18} color={Colors.textSecondary} />
+            <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} />
             <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Member Since</Text>
-              <Text style={styles.infoValue}>
+              <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Member Since</Text>
+              <Text style={[styles.infoValue, { color: colors.textPrimary }]}>
                 {user?.created_at
                   ? new Date(user.created_at).toLocaleDateString(undefined, {
                       year: 'numeric',
@@ -204,54 +321,36 @@ export const ProfileScreen: React.FC = () => {
           </View>
         </Card>
 
-        {/* Emergency Contact */}
-        <Card style={styles.infoCard}>
+        {/* Legacy SOS Phonebook Contacts */}
+        <Card style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <Text style={styles.sectionHeading}>Emergency Contacts</Text>
+            <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>Phonebook SOS Contacts</Text>
             <TouchableOpacity
               onPress={() => navigation.navigate('EmergencyContacts')}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
             >
-              <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.primary }}>Manage</Text>
-              <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>Manage</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.primary} />
             </TouchableOpacity>
           </View>
           <View style={styles.infoRow}>
-            <Ionicons name="shield-checkmark-outline" size={18} color={Colors.safe} />
+            <Ionicons name="shield-checkmark-outline" size={18} color={colors.safe} />
             <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Primary Emergency Contact</Text>
-              <Text style={styles.infoValue}>
+              <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Primary Phone Contact</Text>
+              <Text style={[styles.infoValue, { color: colors.textPrimary }]}>
                 {user?.profile?.emergency_contact_name || 'None configured'}
               </Text>
               {user?.profile?.emergency_contact_phone ? (
-                <Text style={styles.emergencyPhoneText}>
+                <Text style={[styles.emergencyPhoneText, { color: colors.primary }]}>
                   {user.profile.emergency_contact_phone}
                 </Text>
               ) : null}
             </View>
           </View>
-          <TouchableOpacity
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: Colors.primaryLight,
-              paddingVertical: 10,
-              borderRadius: 10,
-              marginTop: 12,
-              gap: 6,
-            }}
-            onPress={() => navigation.navigate('EmergencyContacts')}
-          >
-            <Ionicons name="people-outline" size={16} color={Colors.primaryDark} />
-            <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.primaryDark }}>
-              Manage Up to 5 Contacts & SOS Alerts
-            </Text>
-          </TouchableOpacity>
         </Card>
 
         {/* My Reports Quick-Link */}
-        <Card style={styles.infoCard}>
+        <Card style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <TouchableOpacity
             style={{
               flexDirection: 'row',
@@ -268,23 +367,23 @@ export const ProfileScreen: React.FC = () => {
                   width: 36,
                   height: 36,
                   borderRadius: 10,
-                  backgroundColor: Colors.primaryLight,
+                  backgroundColor: colors.primaryLight,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Ionicons name="document-text-outline" size={18} color={Colors.primaryDark} />
+                <Ionicons name="document-text-outline" size={18} color={colors.primaryDark} />
               </View>
               <View>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.textPrimary }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: colors.textPrimary }}>
                   My Reports
                 </Text>
-                <Text style={{ fontSize: 12, color: Colors.textMuted, marginTop: 1 }}>
+                <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 1 }}>
                   View your submitted incidents
                 </Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
         </Card>
 
@@ -310,14 +409,14 @@ export const ProfileScreen: React.FC = () => {
           style={styles.modalBackdrop}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Profile</Text>
+          <View style={[styles.modalCard, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.borderLight }]}>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Edit Profile</Text>
               <TouchableOpacity
                 onPress={() => setIsEditModalVisible(false)}
                 style={styles.modalClose}
               >
-                <Ionicons name="close" size={24} color={Colors.textSecondary} />
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -353,7 +452,7 @@ export const ProfileScreen: React.FC = () => {
                 numberOfLines={3}
               />
 
-              <Text style={styles.modalSectionLabel}>Emergency Contact</Text>
+              <Text style={[styles.modalSectionLabel, { color: colors.textSecondary }]}>Emergency Contact</Text>
 
               <Input
                 label="Contact Name"
@@ -388,15 +487,11 @@ export const ProfileScreen: React.FC = () => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </SafeScreen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
@@ -414,10 +509,8 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -434,11 +527,9 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 18,
     fontWeight: '800',
-    color: Colors.textPrimary,
   },
   profileEmail: {
     fontSize: 13,
-    color: Colors.textSecondary,
     marginTop: 2,
     marginBottom: 6,
   },
@@ -448,12 +539,10 @@ const styles = StyleSheet.create({
   bioBox: {
     marginTop: 14,
     padding: 12,
-    backgroundColor: Colors.background,
     borderRadius: 10,
   },
   bioText: {
     fontSize: 13,
-    color: Colors.textSecondary,
     lineHeight: 18,
   },
   editBtn: {
@@ -466,8 +555,94 @@ const styles = StyleSheet.create({
   sectionHeading: {
     fontSize: 15,
     fontWeight: '700',
-    color: Colors.textPrimary,
     marginBottom: 4,
+  },
+  themeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  themeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  themeLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  themeSubLabel: {
+    fontSize: 12,
+    marginTop: 1,
+  },
+  themePillsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  themePill: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themePillText: {
+    fontSize: 12,
+  },
+  featureDescription: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  notifBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  notifBadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  contactStatsRow: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  contactStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  contactStatNumber: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  contactStatLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  verticalDivider: {
+    width: 1,
+    height: '100%',
+  },
+  manageContactsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 8,
+    marginTop: 6,
+  },
+  manageContactsBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
   },
   infoRow: {
     flexDirection: 'row',
@@ -480,23 +655,19 @@ const styles = StyleSheet.create({
   infoLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.textMuted,
   },
   infoValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textPrimary,
     marginTop: 2,
   },
   emergencyPhoneText: {
     fontSize: 13,
-    color: Colors.primary,
     fontWeight: '600',
     marginTop: 2,
   },
   divider: {
     height: 1,
-    backgroundColor: Colors.borderLight,
   },
   logoutBtn: {
     marginTop: 10,
@@ -507,7 +678,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: '#ffffff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
@@ -519,13 +689,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
     marginBottom: 16,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.textPrimary,
   },
   modalClose: {
     padding: 4,
@@ -536,7 +704,6 @@ const styles = StyleSheet.create({
   modalSectionLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.textSecondary,
     marginTop: 6,
     marginBottom: 10,
     textTransform: 'uppercase',

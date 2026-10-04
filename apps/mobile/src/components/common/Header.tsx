@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, StyleProp, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '../../constants/colors';
+import { useTheme } from '../../store/themeStore';
 
 interface HeaderProps {
   title: string;
@@ -22,11 +22,25 @@ export const Header: React.FC<HeaderProps> = ({
   style,
 }) => {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+
   return (
-    <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }, style]}>
+    <View
+      style={[
+        styles.header,
+        {
+          backgroundColor: colors.surface,
+          borderBottomColor: colors.border,
+          paddingTop: Math.max(insets.top, 16),
+        },
+        style,
+      ]}
+    >
       <View style={styles.titleContainer}>
-        <Text style={styles.title}>{title}</Text>
-        {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+        <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+        {subtitle && (
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+        )}
       </View>
       {rightComponent ? (
         rightComponent
@@ -49,10 +63,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: Colors.surface,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   titleContainer: {
     flex: 1,
@@ -60,11 +72,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.textPrimary,
   },
   subtitle: {
     fontSize: 13,
-    color: Colors.textSecondary,
     marginTop: 2,
   },
   actionButton: {

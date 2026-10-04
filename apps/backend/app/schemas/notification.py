@@ -15,6 +15,8 @@ class NotificationSchema(BaseModel):
     message: str
     is_read: bool
     incident_id: Optional[str] = None
+    sos_id: Optional[str] = None
+    metadata_json: Optional[str] = None
     created_at: datetime
 
     class Config:

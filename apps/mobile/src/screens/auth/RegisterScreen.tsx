@@ -4,17 +4,16 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   TouchableOpacity,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthStackParamList } from '../../types/navigation';
 import { useAuthStore } from '../../store/authStore';
+import { useTheme } from '../../store/themeStore';
+import { SafeScreen } from '../../components/common/SafeScreen';
 import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
-import { Colors } from '../../constants/colors';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
@@ -33,6 +32,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   }>({});
 
   const { register, isAuthenticating, error, clearError } = useAuthStore();
+  const { colors, isDark } = useTheme();
 
   const validate = () => {
     const newErrors: {
@@ -73,21 +73,18 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
 
     try {
       await register({
-        full_name: fullName.trim(),
         email: email.trim().toLowerCase(),
         password,
+        full_name: fullName.trim(),
         phone: phone.trim() || undefined,
       });
-    } catch {
+    } catch (err: any) {
       // Error handled by store
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <SafeScreen backgroundColor={colors.background}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -95,40 +92,50 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       >
         {/* Header Branding */}
         <View style={styles.brandContainer}>
-          <View style={styles.logoBadge}>
+          <View style={[styles.logoBadge, { backgroundColor: colors.primary, shadowColor: colors.primary }]}>
             <Ionicons name="shield-checkmark" size={32} color="#ffffff" />
           </View>
-          <Text style={styles.brandName}>SafeCity</Text>
-          <Text style={styles.brandTagline}>Citizen Safety Network</Text>
+          <Text style={[styles.brandName, { color: colors.textPrimary }]}>SafeCity</Text>
+          <Text style={[styles.brandTagline, { color: colors.textSecondary }]}>Join Coimbatore's Safety Network</Text>
         </View>
 
         {/* Form Card */}
-        <View style={styles.card}>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join SafeCity to report incidents & stay secure</Text>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              shadowOpacity: isDark ? 0.3 : 0.05,
+            },
+          ]}
+        >
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Create Account</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Sign up as a verified citizen</Text>
 
           {error ? (
-            <View style={styles.errorBanner}>
-              <Ionicons name="alert-circle" size={18} color={Colors.critical} />
-              <Text style={styles.errorBannerText}>{error}</Text>
+            <View style={[styles.errorBanner, { backgroundColor: colors.criticalBg }]}>
+              <Ionicons name="alert-circle" size={18} color={colors.critical} />
+              <Text style={[styles.errorBannerText, { color: colors.criticalText }]}>{error}</Text>
             </View>
           ) : null}
 
           <Input
-            label="Full Name"
+            label="Full Name *"
             placeholder="e.g. John Doe"
             value={fullName}
             onChangeText={(text) => {
               setFullName(text);
               if (errors.fullName) setErrors((prev) => ({ ...prev, fullName: undefined }));
             }}
+            autoCapitalize="words"
             error={errors.fullName}
-            leftIcon={<Ionicons name="person-outline" size={18} color={Colors.textSecondary} />}
+            leftIcon={<Ionicons name="person-outline" size={18} color={colors.textSecondary} />}
           />
 
           <Input
-            label="Email Address"
-            placeholder="e.g. citizen@example.com"
+            label="Email Address *"
+            placeholder="e.g. citizen@safecity.com"
             value={email}
             onChangeText={(text) => {
               setEmail(text);
@@ -138,7 +145,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             autoCapitalize="none"
             autoCorrect={false}
             error={errors.email}
-            leftIcon={<Ionicons name="mail-outline" size={18} color={Colors.textSecondary} />}
+            leftIcon={<Ionicons name="mail-outline" size={18} color={colors.textSecondary} />}
           />
 
           <Input
@@ -151,11 +158,11 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             }}
             keyboardType="phone-pad"
             error={errors.phone}
-            leftIcon={<Ionicons name="call-outline" size={18} color={Colors.textSecondary} />}
+            leftIcon={<Ionicons name="call-outline" size={18} color={colors.textSecondary} />}
           />
 
           <Input
-            label="Password"
+            label="Password *"
             placeholder="Minimum 8 characters"
             value={password}
             onChangeText={(text) => {
@@ -164,11 +171,11 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             }}
             isPassword
             error={errors.password}
-            leftIcon={<Ionicons name="lock-closed-outline" size={18} color={Colors.textSecondary} />}
+            leftIcon={<Ionicons name="lock-closed-outline" size={18} color={colors.textSecondary} />}
           />
 
           <Input
-            label="Confirm Password"
+            label="Confirm Password *"
             placeholder="Re-enter password"
             value={confirmPassword}
             onChangeText={(text) => {
@@ -177,7 +184,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             }}
             isPassword
             error={errors.confirmPassword}
-            leftIcon={<Ionicons name="lock-closed-outline" size={18} color={Colors.textSecondary} />}
+            leftIcon={<Ionicons name="lock-closed-outline" size={18} color={colors.textSecondary} />}
           />
 
           <Button
@@ -191,26 +198,22 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Footer Link */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Already have an account? </Text>
+          <Text style={[styles.footerText, { color: colors.textSecondary }]}>Already have an account? </Text>
           <TouchableOpacity
             onPress={() => {
               clearError();
               navigation.navigate('Login');
             }}
           >
-            <Text style={styles.footerLink}>Sign In</Text>
+            <Text style={[styles.footerLink, { color: colors.primary }]}>Sign In</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </SafeScreen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
@@ -225,10 +228,8 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 16,
-    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -238,47 +239,38 @@ const styles = StyleSheet.create({
   brandName: {
     fontSize: 24,
     fontWeight: '800',
-    color: Colors.textPrimary,
   },
   brandTagline: {
     fontSize: 12,
-    color: Colors.textSecondary,
     marginTop: 2,
   },
   card: {
-    backgroundColor: '#ffffff',
     borderRadius: 20,
     padding: 22,
     borderWidth: 1,
-    borderColor: Colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
     shadowRadius: 10,
     elevation: 3,
   },
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.textPrimary,
   },
   subtitle: {
     fontSize: 13,
-    color: Colors.textSecondary,
     marginTop: 4,
     marginBottom: 16,
   },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.criticalBg,
     padding: 12,
     borderRadius: 10,
     marginBottom: 16,
     gap: 8,
   },
   errorBannerText: {
-    color: Colors.criticalText,
     fontSize: 13,
     fontWeight: '500',
     flex: 1,
@@ -295,11 +287,9 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: Colors.textSecondary,
   },
   footerLink: {
     fontSize: 14,
     fontWeight: '700',
-    color: Colors.primary,
   },
 });

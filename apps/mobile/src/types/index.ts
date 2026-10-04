@@ -144,6 +144,8 @@ export interface NotificationItem {
   message: string;
   is_read: boolean;
   incident_id?: string | null;
+  sos_id?: string | null;
+  metadata_json?: string | null;
   created_at: string;
 }
 

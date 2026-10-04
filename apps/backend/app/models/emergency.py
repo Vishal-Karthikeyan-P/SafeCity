@@ -20,6 +20,53 @@ class SOSStatus(str, enum.Enum):
     RESOLVED = "resolved"
     FALSE_ALARM = "false_alarm"
 
+
+class ContactRequestStatus(str, enum.Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+
+
+class ContactRequest(Base):
+    """User-to-user in-app emergency contact request."""
+    __tablename__ = "contact_requests"
+
+    id: Mapped[str] = mapped_column(
+        sa.String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    # The user who sent the request
+    requester_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    # The user being asked to be an emergency contact
+    contact_id: Mapped[str] = mapped_column(
+        sa.String(36), sa.ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    status: Mapped[ContactRequestStatus] = mapped_column(
+        sa.Enum(ContactRequestStatus, native_enum=False),
+        nullable=False,
+        default=ContactRequestStatus.PENDING,
+        index=True
+    )
+    message: Mapped[Optional[str]] = mapped_column(sa.Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), default=utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+    # Relationships
+    requester: Mapped["User"] = relationship("User", foreign_keys=[requester_id])  # type: ignore
+    contact: Mapped["User"] = relationship("User", foreign_keys=[contact_id])  # type: ignore
+
+    __table_args__ = (
+        sa.UniqueConstraint("requester_id", "contact_id", name="uq_contact_request_pair"),
+    )
+
+
 class EmergencyContact(Base):
     __tablename__ = "emergency_contacts"
 

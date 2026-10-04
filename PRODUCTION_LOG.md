@@ -4,6 +4,49 @@ All platform updates, new features, category expansions, database seeding enhanc
 
 ---
 
+## 📅 Release Version: 1.7.0 (October 2026) — User-to-User Contacts, Dark Mode, Push Notifications & Safe Areas 📱🌙
+
+### 🌟 New Features & Enhancements
+
+1. **User-to-User Emergency Contact Requests (`/api/v1/contacts`)**
+   - Implemented reciprocal user-to-user emergency contacts with invitation, acceptance, rejection, and revocation lifecycle.
+   - Verified SafeCity citizens can search users by email/name and send requests with optional custom messages.
+   - When a citizen triggers an SOS emergency, all accepted user-to-user contacts are automatically notified via push notifications and in-app alerts with real-time GPS coordinates.
+   - Backed by `contact_requests` table with migration `006_contact_requests`.
+
+2. **Mobile Dark Mode System (`useTheme()`)**
+   - Full dark theme color tokens created in `constants/theme.ts` supporting Light, Dark, and System preference.
+   - Persistent theme store (`store/themeStore.ts`) with AsyncStorage caching.
+   - Refactored mobile components and screens (`HomeScreen`, `ProfileScreen`, `NotificationsScreen`, `LoginScreen`, `RegisterScreen`, `MyIncidentsScreen`, `ReportScreen`, `SafeRouteScreen`, `EmergencyContactsScreen`, `Card`, `Header`, `Input`) to dynamically adapt styles to current theme.
+   - Interactive theme switcher in Profile screen (Switch toggle + Light/Dark/System pills).
+
+3. **System Bar & Safe Area Architecture (`SafeScreen`)**
+   - Standardized `SafeScreen` component wrapping screens with proper `SafeAreaView` and keyboard avoidance.
+   - Custom inset handling for map screens and floating overlay controls to prevent status bar and bottom gesture bar clipping on notched and edge-to-edge Android/iOS devices.
+
+4. **Unified Push & Location Safety Notifications**
+   - Integrated Expo Push Notification service (`push_service.py`) and token registration (`POST /api/v1/contacts/push-token`).
+   - Extended `NotificationType` enum with `EMERGENCY_CONTACT_REQUEST`, `EMERGENCY_CONTACT_ACCEPTED`, `SOS_ALERT`, `NEARBY_INCIDENT`, and `UNSAFE_AREA`.
+   - Proximity and danger-zone check endpoint (`POST /api/v1/contacts/location-check`) calculating safety score and nearby incidents within 5 km using PostGIS `ST_DWithin`.
+   - Web `NotificationsPage` upgraded with distinct badge colors, icons, and routing for all new notification types.
+
+5. **Anonymous Incident Ownership & Creator Participation**
+   - Incidents reported anonymously now store `anonymous_reporter_id` internally (migration `005_anonymous_reporter_severity`).
+   - Anonymous reporters can now track their submitted reports in "My Incidents", receive resolution status notifications, and participate in the resolution review workflow while remaining 100% anonymous to public/admin view.
+
+### 🔧 Files Changed
+
+| Component | Files Changed |
+|---|---|
+| **Backend Models & Migrations** | `migrations/versions/006_contact_requests.py`, `models/emergency.py`, `models/user.py`, `models/notification.py` |
+| **Backend Services & Repositories** | `services/contact_request_service.py`, `services/push_service.py`, `services/location_notification_service.py`, `repositories/contact_request_repository.py`, `repositories/notification_repository.py` |
+| **Backend Routers & Schemas** | `api/v1/routers/contacts.py`, `api/v1/router.py`, `schemas/contacts.py`, `schemas/notification.py` |
+| **Mobile Core & Theme** | `constants/theme.ts`, `store/themeStore.ts`, `components/common/SafeScreen.tsx`, `utils/pushNotifications.ts` |
+| **Mobile Screens & Navigation** | `screens/profile/EmergencyContactsScreen.tsx`, `screens/profile/ProfileScreen.tsx`, `screens/profile/MyIncidentsScreen.tsx`, `screens/report/ReportScreen.tsx`, `screens/route/SafeRouteScreen.tsx`, `navigation/MainStackNavigator.tsx` |
+| **Web Frontend** | `src/pages/NotificationsPage.tsx` |
+
+---
+
 ## 📅 Release Version: 1.6.1 (September 2026) — Lightweight Health Check & Keep-Alive 🩺
 
 ### 🌟 New Features & Enhancements

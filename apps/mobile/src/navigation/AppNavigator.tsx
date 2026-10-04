@@ -1,14 +1,15 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, forwardRef } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
 import { AuthNavigator } from './AuthNavigator';
 import { MainStackNavigator } from './MainStackNavigator';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../store/themeStore';
 
-export const AppNavigator: React.FC = () => {
+export const AppNavigator = forwardRef<NavigationContainerRef<any>>((_, ref) => {
   const { isAuthenticated, isLoading, restoreAuth } = useAuthStore();
+  const theme = useTheme();
 
   useEffect(() => {
     restoreAuth();
@@ -16,28 +17,29 @@ export const AppNavigator: React.FC = () => {
 
   if (isLoading) {
     return (
-      <View style={styles.splashContainer}>
-        <View style={styles.logoBadge}>
+      <View style={[styles.splashContainer, { backgroundColor: theme.background }]}>
+        <View style={[styles.logoBadge, { backgroundColor: theme.primary, shadowColor: theme.primary }]}>
           <Ionicons name="shield-checkmark" size={48} color="#ffffff" />
         </View>
-        <Text style={styles.splashTitle}>SafeCity</Text>
-        <Text style={styles.splashSubtitle}>Connecting Smart Cities</Text>
-        <ActivityIndicator size="small" color={Colors.primary} style={styles.spinner} />
+        <Text style={[styles.splashTitle, { color: theme.textPrimary }]}>SafeCity</Text>
+        <Text style={[styles.splashSubtitle, { color: theme.textSecondary }]}>Connecting Smart Cities</Text>
+        <ActivityIndicator size="small" color={theme.primary} style={styles.spinner} />
       </View>
     );
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={ref}>
       {isAuthenticated ? <MainStackNavigator /> : <AuthNavigator />}
     </NavigationContainer>
   );
-};
+});
+
+AppNavigator.displayName = 'AppNavigator';
 
 const styles = StyleSheet.create({
   splashContainer: {
     flex: 1,
-    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -45,10 +47,8 @@ const styles = StyleSheet.create({
     width: 84,
     height: 84,
     borderRadius: 24,
-    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.35,
     shadowRadius: 16,
@@ -58,12 +58,10 @@ const styles = StyleSheet.create({
   splashTitle: {
     fontSize: 30,
     fontWeight: '800',
-    color: Colors.textPrimary,
     letterSpacing: -0.5,
   },
   splashSubtitle: {
     fontSize: 14,
-    color: Colors.textSecondary,
     marginTop: 4,
   },
   spinner: {

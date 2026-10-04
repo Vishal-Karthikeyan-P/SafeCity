@@ -7,7 +7,6 @@ import {
   RefreshControl,
   TouchableOpacity,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
@@ -17,6 +16,8 @@ import * as Location from 'expo-location';
 import { MainTabParamList, MainStackParamList } from '../../types/navigation';
 import { useAuthStore } from '../../store/authStore';
 import { useSOSStore } from '../../store/sosStore';
+import { useTheme } from '../../store/themeStore';
+import { SafeScreen } from '../../components/common/SafeScreen';
 import { SafetyScoreCard } from '../../components/home/SafetyScoreCard';
 import { QuickActions } from '../../components/home/QuickActions';
 import { RecentAlertsCard } from '../../components/home/RecentAlertsCard';
@@ -24,7 +25,8 @@ import { SOSCountdownModal } from '../../components/sos/SOSCountdownModal';
 import { SafetyApi } from '../../api/safety';
 import { AlertsApi } from '../../api/alerts';
 import { IncidentsApi } from '../../api/incidents';
-import { Colors } from '../../constants/colors';
+import { NotificationsApi } from '../../api/notifications';
+import { ContactRequestsApi } from '../../api/contactRequests';
 import { DEFAULT_COORDS } from '../../config/env';
 import { SOSRequest } from '../../types';
 
@@ -34,6 +36,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const rootNavigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { user } = useAuthStore();
   const { activeSOS, checkActiveSOS } = useSOSStore();
+  const { colors, isDark } = useTheme();
 
   // GPS location state — start with default, upgrade to real GPS
   const [coords, setCoords] = useState({
@@ -45,7 +48,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const [isCountdownOpen, setIsCountdownOpen] = useState(false);
 
   // Check active SOS and acquire GPS on mount
-  React.useEffect(() => {
+  useEffect(() => {
     checkActiveSOS();
     acquireGPS();
   }, [checkActiveSOS]);
@@ -64,6 +67,9 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
       };
       setCoords(newCoords);
       setIsUsingGPS(true);
+
+      // Trigger server-side location safety check (unsafe area & nearby incident alerts)
+      ContactRequestsApi.checkLocation(newCoords.latitude, newCoords.longitude).catch(() => {});
 
       // Reverse geocode to get a readable location name
       try {
@@ -117,10 +123,24 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     staleTime: 60000,
   });
 
+  // 4. Fetch notification count for top bell badge
+  const { data: notifData } = useQuery({
+    queryKey: ['notifications-list'],
+    queryFn: NotificationsApi.list,
+    staleTime: 15000,
+  });
+
   const activeAlerts = alertsData?.items ?? [];
+  const unreadCount = notifData?.unread_count || 0;
 
   const handleRefresh = async () => {
-    await Promise.all([refetchSafety(), refetchNearby(), refetchAlerts(), checkActiveSOS()]);
+    await Promise.all([
+      refetchSafety(),
+      refetchNearby(),
+      refetchAlerts(),
+      checkActiveSOS(),
+      acquireGPS(),
+    ]);
   };
 
   const isRefreshing = isRefetchingSafety;
@@ -138,23 +158,28 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     rootNavigation.navigate('ActiveSOS');
   };
 
-  const insets = useSafeAreaInsets();
-
   return (
-    <View style={styles.container}>
+    <SafeScreen backgroundColor={colors.background}>
       {/* Top Bar / Header */}
-      <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 16) }]}>
+      <View style={[styles.topBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <View style={styles.userGreeting}>
-          <Text style={styles.greetingPrefix}>Hello,</Text>
-          <Text style={styles.userName}>{user?.full_name || 'Citizen'}</Text>
+          <Text style={[styles.greetingPrefix, { color: colors.textSecondary }]}>Hello,</Text>
+          <Text style={[styles.userName, { color: colors.textPrimary }]}>{user?.full_name || 'Citizen'}</Text>
         </View>
 
         <TouchableOpacity
-          style={styles.notificationBtn}
+          style={[styles.notificationBtn, { backgroundColor: colors.background, borderColor: colors.border }]}
           onPress={() => navigation.navigate('Notifications')}
           activeOpacity={0.7}
         >
-          <Ionicons name="notifications-outline" size={22} color={Colors.textPrimary} />
+          <Ionicons name="notifications-outline" size={22} color={colors.textPrimary} />
+          {unreadCount > 0 && (
+            <View style={[styles.unreadBadge, { backgroundColor: colors.alert }]}>
+              <Text style={styles.unreadBadgeText}>
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -165,8 +190,8 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
-            colors={[Colors.primary]}
-            tintColor={Colors.primary}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
           />
         }
       >
@@ -205,7 +230,6 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           onTriggerSOS={handleTriggerSOS}
         />
 
-
         {/* Community Alerts Section */}
         <RecentAlertsCard
           alerts={activeAlerts}
@@ -213,23 +237,28 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
         />
 
         {/* Nearby Incidents Summary Banner */}
-        <View style={styles.nearbyBanner}>
-          <View style={styles.nearbyIconWrap}>
-            <Ionicons name="shield-outline" size={20} color={Colors.primary} />
+        <View
+          style={[
+            styles.nearbyBanner,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <View style={[styles.nearbyIconWrap, { backgroundColor: colors.primaryLight }]}>
+            <Ionicons name="shield-outline" size={20} color={colors.primary} />
           </View>
           <View style={styles.nearbyTextWrap}>
-            <Text style={styles.nearbyTitle}>
+            <Text style={[styles.nearbyTitle, { color: colors.textPrimary }]}>
               {nearbyIncidents.length} Incident{nearbyIncidents.length === 1 ? '' : 's'} Reported in 5km
             </Text>
-            <Text style={styles.nearbySub}>
+            <Text style={[styles.nearbySub, { color: colors.textMuted }]}>
               Data synchronized with City Safety Database
             </Text>
           </View>
           <TouchableOpacity
-            style={styles.viewMapLink}
+            style={[styles.viewMapLink, { backgroundColor: colors.primaryLight }]}
             onPress={() => navigation.navigate('Map')}
           >
-            <Text style={styles.viewMapText}>View Map</Text>
+            <Text style={[styles.viewMapText, { color: colors.primaryDark }]}>View Map</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -240,15 +269,11 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
         onCancel={() => setIsCountdownOpen(false)}
         onSuccess={handleSOSSuccess}
       />
-    </View>
+    </SafeScreen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
   activeSosBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -290,35 +315,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 14,
-    backgroundColor: Colors.surface,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   userGreeting: {
     flex: 1,
   },
   greetingPrefix: {
     fontSize: 13,
-    color: Colors.textSecondary,
     fontWeight: '500',
   },
   userName: {
     fontSize: 20,
     fontWeight: '800',
-    color: Colors.textPrimary,
     letterSpacing: -0.3,
   },
   notificationBtn: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: Colors.border,
+    position: 'relative',
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  unreadBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '800',
   },
   scrollContent: {
     padding: 16,
@@ -327,18 +362,15 @@ const styles = StyleSheet.create({
   nearbyBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
     gap: 12,
   },
   nearbyIconWrap: {
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: Colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -348,23 +380,18 @@ const styles = StyleSheet.create({
   nearbyTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.textPrimary,
   },
   nearbySub: {
     fontSize: 11,
-    color: Colors.textMuted,
     marginTop: 2,
   },
   viewMapLink: {
     paddingVertical: 6,
     paddingHorizontal: 10,
-    backgroundColor: Colors.primaryLight,
     borderRadius: 8,
   },
   viewMapText: {
     fontSize: 12,
     fontWeight: '700',
-    color: Colors.primaryDark,
   },
 });
-

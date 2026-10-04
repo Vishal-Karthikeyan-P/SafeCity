@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  SafeAreaView,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,7 +18,8 @@ import { Incident, SeverityLevel, IncidentStatus } from '../../types';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
-import { Colors } from '../../constants/colors';
+import { SafeScreen } from '../../components/common/SafeScreen';
+import { useTheme } from '../../store/themeStore';
 
 type NavigationProp = NativeStackNavigationProp<MainStackParamList>;
 
@@ -34,12 +34,15 @@ const STATUS_LABELS: Record<IncidentStatus, string> = {
   resolved: 'Resolved',
 };
 
-const SEVERITY_COLORS: Record<SeverityLevel, { bg: string; text: string }> = {
-  low:      { bg: Colors.safeBg,     text: Colors.safeText },
-  medium:   { bg: Colors.moderateBg, text: Colors.moderateText },
-  high:     { bg: Colors.highRiskBg, text: Colors.highRiskText },
-  critical: { bg: Colors.criticalBg, text: Colors.criticalText },
-};
+function getSeverityColors(severity: SeverityLevel, colors: ReturnType<typeof useTheme>['colors']) {
+  switch (severity) {
+    case 'low':      return { bg: colors.safeLight,    text: colors.safe };
+    case 'medium':   return { bg: colors.warningLight,  text: colors.warning };
+    case 'high':     return { bg: colors.alertLight,    text: colors.alert };
+    case 'critical': return { bg: '#ff00001a',           text: '#cc0000' };
+    default:         return { bg: colors.warningLight,  text: colors.warning };
+  }
+}
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -62,19 +65,20 @@ function timeAgo(iso: string): string {
 // ── Incident Card ──────────────────────────────────────────────────────────────
 
 function IncidentItem({ incident }: { incident: Incident }) {
-  const sev = SEVERITY_COLORS[incident.severity] ?? SEVERITY_COLORS.medium;
+  const { colors } = useTheme();
+  const sev = getSeverityColors(incident.severity, colors);
   const statusLabel = STATUS_LABELS[incident.status] ?? incident.status;
 
   return (
-    <Card style={styles.itemCard}>
+    <Card style={[styles.itemCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       {/* Header row */}
       <View style={styles.itemHeader}>
         <Text style={styles.itemIcon}>{incident.category?.icon || '📋'}</Text>
         <View style={styles.itemHeaderText}>
-          <Text style={styles.itemTitle} numberOfLines={2}>
+          <Text style={[styles.itemTitle, { color: colors.textPrimary }]} numberOfLines={2}>
             {incident.title}
           </Text>
-          <Text style={styles.itemCategory} numberOfLines={1}>
+          <Text style={[styles.itemCategory, { color: colors.textMuted }]} numberOfLines={1}>
             {incident.category?.name || 'Uncategorized'} · {timeAgo(incident.created_at)}
           </Text>
         </View>
@@ -82,7 +86,7 @@ function IncidentItem({ incident }: { incident: Incident }) {
 
       {/* Description */}
       {incident.description ? (
-        <Text style={styles.itemDescription} numberOfLines={2}>
+        <Text style={[styles.itemDescription, { color: colors.textSecondary }]} numberOfLines={2}>
           {incident.description}
         </Text>
       ) : null}
@@ -107,17 +111,17 @@ function IncidentItem({ incident }: { incident: Incident }) {
         {/* Image count */}
         {incident.images && incident.images.length > 0 && (
           <View style={styles.imageCount}>
-            <Ionicons name="image-outline" size={12} color={Colors.textMuted} />
-            <Text style={styles.imageCountText}>{incident.images.length}</Text>
+            <Ionicons name="image-outline" size={12} color={colors.textMuted} />
+            <Text style={[styles.imageCountText, { color: colors.textMuted }]}>{incident.images.length}</Text>
           </View>
         )}
       </View>
 
       {/* Admin note */}
       {incident.admin_note ? (
-        <View style={styles.adminNoteBox}>
-          <Ionicons name="alert-circle-outline" size={13} color={Colors.primary} />
-          <Text style={styles.adminNoteText} numberOfLines={2}>
+        <View style={[styles.adminNoteBox, { backgroundColor: `${colors.primary}12` }]}>
+          <Ionicons name="alert-circle-outline" size={13} color={colors.primary} />
+          <Text style={[styles.adminNoteText, { color: colors.primary }]} numberOfLines={2}>
             Admin: {incident.admin_note}
           </Text>
         </View>
@@ -126,8 +130,8 @@ function IncidentItem({ incident }: { incident: Incident }) {
       {/* Location */}
       {incident.location_address ? (
         <View style={styles.locationRow}>
-          <Ionicons name="location-outline" size={12} color={Colors.textMuted} />
-          <Text style={styles.locationText} numberOfLines={1}>
+          <Ionicons name="location-outline" size={12} color={colors.textMuted} />
+          <Text style={[styles.locationText, { color: colors.textMuted }]} numberOfLines={1}>
             {incident.location_address}
           </Text>
         </View>
@@ -140,6 +144,7 @@ function IncidentItem({ incident }: { incident: Incident }) {
 
 export const MyIncidentsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const { colors } = useTheme();
   const [page, setPage] = useState(1);
   const LIMIT = 15;
 
@@ -159,13 +164,12 @@ export const MyIncidentsScreen: React.FC = () => {
   }, [refetch]);
 
   const goToReport = () => {
-    // Go back to Profile, then the user can navigate to Report tab
     navigation.goBack();
   };
 
   const renderHeader = () => (
     <View style={styles.listHeader}>
-      <Text style={styles.totalLabel}>
+      <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>
         {total} report{total !== 1 ? 's' : ''} submitted by you
       </Text>
     </View>
@@ -175,9 +179,9 @@ export const MyIncidentsScreen: React.FC = () => {
     if (isLoading) return null;
     return (
       <View style={styles.emptyContainer}>
-        <Ionicons name="document-text-outline" size={56} color={Colors.textMuted} />
-        <Text style={styles.emptyTitle}>No reports yet</Text>
-        <Text style={styles.emptySubtitle}>
+        <Ionicons name="document-text-outline" size={56} color={colors.textMuted} />
+        <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No reports yet</Text>
+        <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
           You haven't submitted any incident reports.{'\n'}
           Help keep your community safe by reporting hazards.
         </Text>
@@ -196,36 +200,44 @@ export const MyIncidentsScreen: React.FC = () => {
     return (
       <View style={styles.pagination}>
         <TouchableOpacity
-          style={[styles.pageBtn, page === 1 && styles.pageBtnDisabled]}
+          style={[
+            styles.pageBtn,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+            page === 1 && styles.pageBtnDisabled,
+          ]}
           onPress={() => setPage((p) => Math.max(1, p - 1))}
           disabled={page === 1}
         >
           <Ionicons
             name="chevron-back"
             size={18}
-            color={page === 1 ? Colors.textMuted : Colors.primary}
+            color={page === 1 ? colors.textMuted : colors.primary}
           />
-          <Text style={[styles.pageBtnText, page === 1 && styles.pageBtnTextDisabled]}>
+          <Text style={[styles.pageBtnText, { color: page === 1 ? colors.textMuted : colors.primary }]}>
             Prev
           </Text>
         </TouchableOpacity>
 
-        <Text style={styles.pageLabel}>
+        <Text style={[styles.pageLabel, { color: colors.textSecondary }]}>
           Page {page} of {totalPages}
         </Text>
 
         <TouchableOpacity
-          style={[styles.pageBtn, page === totalPages && styles.pageBtnDisabled]}
+          style={[
+            styles.pageBtn,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+            page === totalPages && styles.pageBtnDisabled,
+          ]}
           onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
           disabled={page === totalPages}
         >
-          <Text style={[styles.pageBtnText, page === totalPages && styles.pageBtnTextDisabled]}>
+          <Text style={[styles.pageBtnText, { color: page === totalPages ? colors.textMuted : colors.primary }]}>
             Next
           </Text>
           <Ionicons
             name="chevron-forward"
             size={18}
-            color={page === totalPages ? Colors.textMuted : Colors.primary}
+            color={page === totalPages ? colors.textMuted : colors.primary}
           />
         </TouchableOpacity>
       </View>
@@ -233,33 +245,33 @@ export const MyIncidentsScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <SafeAreaView style={styles.headerSafe}>
-        {/* Back bar */}
-        <View style={styles.backBar}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backBtn}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="chevron-back" size={26} color={Colors.primary} />
-          </TouchableOpacity>
-          <View style={styles.headerTitleBox}>
-            <Text style={styles.headerTitle}>My Reports</Text>
-            <Text style={styles.headerSubtitle}>Your submitted incident reports</Text>
-          </View>
-          {incidents.length > 0 && (
-            <TouchableOpacity onPress={goToReport} style={styles.addBtn}>
-              <Ionicons name="add" size={26} color={Colors.primary} />
-            </TouchableOpacity>
-          )}
+    <SafeScreen backgroundColor={colors.background}>
+      {/* Back bar / Header */}
+      <View style={[styles.headerBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="chevron-back" size={26} color={colors.primary} />
+        </TouchableOpacity>
+        <View style={styles.headerTitleBox}>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>My Reports</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
+            Your submitted incident reports
+          </Text>
         </View>
-      </SafeAreaView>
+        {incidents.length > 0 && (
+          <TouchableOpacity onPress={goToReport} style={styles.addBtn}>
+            <Ionicons name="add" size={26} color={colors.primary} />
+          </TouchableOpacity>
+        )}
+      </View>
 
       {isLoading && page === 1 ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading your reports...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textMuted }]}>Loading your reports...</Text>
         </View>
       ) : (
         <FlatList
@@ -278,34 +290,26 @@ export const MyIncidentsScreen: React.FC = () => {
             <RefreshControl
               refreshing={isFetching && !isLoading}
               onRefresh={onRefresh}
-              tintColor={Colors.primary}
-              colors={[Colors.primary]}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
             />
           }
         />
       )}
-    </View>
+    </SafeScreen>
   );
 };
 
 // ── Styles ─────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  headerSafe: {
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  backBar: {
+  headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 12,
     gap: 8,
+    borderBottomWidth: 1,
   },
   backBtn: {
     padding: 4,
@@ -316,11 +320,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.textPrimary,
   },
   headerSubtitle: {
     fontSize: 12,
-    color: Colors.textSecondary,
     marginTop: 1,
   },
   addBtn: {
@@ -334,7 +336,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: Colors.textMuted,
   },
   listContent: {
     padding: 16,
@@ -349,7 +350,6 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     fontSize: 13,
-    color: Colors.textSecondary,
     fontWeight: '500',
   },
   // ── Incident card ──────────────────────────────────────────────
@@ -372,17 +372,14 @@ const styles = StyleSheet.create({
   itemTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: Colors.textPrimary,
     lineHeight: 20,
   },
   itemCategory: {
     fontSize: 12,
-    color: Colors.textMuted,
     marginTop: 2,
   },
   itemDescription: {
     fontSize: 13,
-    color: Colors.textSecondary,
     lineHeight: 18,
   },
   itemFooter: {
@@ -411,21 +408,18 @@ const styles = StyleSheet.create({
   },
   imageCountText: {
     fontSize: 11,
-    color: Colors.textMuted,
     fontWeight: '600',
   },
   adminNoteBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 6,
-    backgroundColor: `${Colors.primary}12`,
     borderRadius: 8,
     padding: 8,
   },
   adminNoteText: {
     flex: 1,
     fontSize: 12,
-    color: Colors.primary,
     lineHeight: 16,
   },
   locationRow: {
@@ -436,7 +430,6 @@ const styles = StyleSheet.create({
   locationText: {
     flex: 1,
     fontSize: 11,
-    color: Colors.textMuted,
   },
   // ── Empty state ──────────────────────────────────────────────
   emptyContainer: {
@@ -449,12 +442,10 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: Colors.textPrimary,
     textAlign: 'center',
   },
   emptySubtitle: {
     fontSize: 14,
-    color: Colors.textMuted,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -477,9 +468,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 8,
-    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   pageBtnDisabled: {
     opacity: 0.4,
@@ -487,14 +476,9 @@ const styles = StyleSheet.create({
   pageBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.primary,
-  },
-  pageBtnTextDisabled: {
-    color: Colors.textMuted,
   },
   pageLabel: {
     fontSize: 13,
-    color: Colors.textSecondary,
     fontWeight: '600',
   },
 });

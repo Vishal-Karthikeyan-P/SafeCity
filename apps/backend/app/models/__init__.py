@@ -6,7 +6,7 @@ from app.models.incident import (
 from app.models.notification import Notification, NotificationType
 from app.models.learning import Article, ArticleCategory
 from app.models.alert import CommunityAlert, AlertType
-from app.models.emergency import EmergencyContact, SOSRequest, SOSStatus
+from app.models.emergency import EmergencyContact, SOSRequest, SOSStatus, ContactRequest, ContactRequestStatus
 from app.models.password_reset import PasswordResetOTP
 
 __all__ = [
@@ -17,6 +17,7 @@ __all__ = [
     "Article", "ArticleCategory",
     "CommunityAlert", "AlertType",
     "EmergencyContact", "SOSRequest", "SOSStatus",
+    "ContactRequest", "ContactRequestStatus",
     "PasswordResetOTP"
 ]
 

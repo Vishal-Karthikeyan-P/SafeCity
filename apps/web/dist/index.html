@@ -1,32 +1,79 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="SafeCity — Smart City Safety Platform. Report, track, and monitor safety incidents in your city." />
-    <meta name="theme-color" content="#1d7eeb" />
-    <title>SafeCity — Smart City Safety Platform</title>
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-    <!-- Leaflet CSS & JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
-    <script type="module" crossorigin src="/assets/index-Bmpts4Yn.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/vendor-query-CxUScisS.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-react-Dg7fJShN.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-charts-CnhgjQzO.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-form-BTID9bxn.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-map-BszKtxho.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-BXuXDw9_.css">
-  </head>
-  <body>
-    <div id="root"></div>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+
+  <!-- ── Favicon & Icons ─────────────────────────────────── -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="alternate icon" type="image/png" href="/icon.png" />
+  <link rel="apple-touch-icon" href="/icon.png" />
+
+  <!-- ── Viewport & Theme ────────────────────────────────── -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f172a" />
+
+  <!-- ── Apply saved theme before first paint (prevents light-mode flash) ── -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('theme');
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (saved === 'dark' || (!saved && prefersDark)) {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) { }
+    })();
+  </script>
+
+  <!-- ── Primary SEO ─────────────────────────────────────── -->
+  <title>SafeCity — Smart City Safety Platform</title>
+  <meta name="description"
+    content="SafeCity — Report, track and monitor safety incidents across your city in real-time. Community-powered urban safety intelligence for Coimbatore." />
+  <meta name="keywords" content="SafeCity, city safety, incident reporting, community alerts, smart city, Coimbatore" />
+  <meta name="author" content="SafeCity" />
+
+  <!-- ── Open Graph (Social sharing) ────────────────────── -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="SafeCity — Smart City Safety Platform" />
+  <meta property="og:description" content="Report, track and monitor safety incidents across your city in real-time." />
+  <meta property="og:image" content="/og-image.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+
+  <!-- ── Twitter Card ────────────────────────────────────── -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="SafeCity — Smart City Safety Platform" />
+  <meta name="twitter:description" content="Community-powered safety intelligence for your city." />
+  <meta name="twitter:image" content="/og-image.jpg" />
+
+  <!-- ── PWA Manifest ────────────────────────────────────── -->
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- ── Google Fonts ────────────────────────────────────── -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet" />
+
+  <!-- ── Leaflet CSS & JS ────────────────────────────────── -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+  <script type="module" crossorigin src="/assets/index-CdqDksX3.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/vendor-query-CxUScisS.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-react-Dg7fJShN.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-charts-CnhgjQzO.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-form-tcKLQYd1.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-map-BszKtxho.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-pwBUjTUU.css">
+</head>
+
+<body>
+  <div id="root"></div>
+</body>
+
 </html>

@@ -1,7 +1,8 @@
 """
-Notification Repository
+Notification Repository — extended with deduplication, metadata, and push notification support.
 """
-from typing import List, Tuple
+import json
+from typing import List, Optional, Tuple
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,13 +21,38 @@ class NotificationRepository:
         message: str,
         type: NotificationType = NotificationType.SYSTEM,
         incident_id: str = None,
+        sos_id: str = None,
+        metadata: dict = None,
+        dedup_key: str = None,
     ) -> Notification:
+        """
+        Create a notification. If dedup_key is provided and an unread notification
+        with the same user_id+dedup_key already exists within 24h, skip creation.
+        Returns the notification (new or existing) or None if deduplicated.
+        """
+        # Deduplication check
+        if dedup_key:
+            from datetime import datetime, timezone, timedelta
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+            existing = await self.db.execute(
+                select(Notification).where(
+                    Notification.user_id == user_id,
+                    Notification.dedup_key == dedup_key,
+                    Notification.created_at >= cutoff,
+                )
+            )
+            if existing.scalar_one_or_none():
+                return None  # Already notified recently
+
         n = Notification(
             user_id=user_id,
             title=title,
             message=message,
             type=type,
             incident_id=incident_id,
+            sos_id=sos_id,
+            metadata_json=json.dumps(metadata) if metadata else None,
+            dedup_key=dedup_key,
         )
         self.db.add(n)
         await self.db.flush()
@@ -73,3 +99,16 @@ class NotificationRepository:
             .values(is_read=True)
         )
         await self.db.flush()
+
+    async def has_recent_dedup(self, user_id: str, dedup_key: str, hours: int = 24) -> bool:
+        """Check if a notification with this dedup_key was sent to user_id within the last N hours."""
+        from datetime import datetime, timezone, timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        result = await self.db.execute(
+            select(func.count()).select_from(Notification).where(
+                Notification.user_id == user_id,
+                Notification.dedup_key == dedup_key,
+                Notification.created_at >= cutoff,
+            )
+        )
+        return result.scalar_one() > 0

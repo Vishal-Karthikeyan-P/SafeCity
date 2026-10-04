@@ -53,5 +53,7 @@ export const StorageKeys = {
   REFRESH_TOKEN: 'safecity_refresh_token',
   USER_DATA: 'safecity_user_data',
   SELECTED_SOS_CONTACTS: 'safecity_selected_sos_contacts',
+  THEME_PREFERENCE: 'safecity_theme_preference',
+  PUSH_TOKEN: 'safecity_push_token',
 };
 

@@ -30,9 +30,25 @@ async def trigger_sos(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Trigger a new SOS request for the current user."""
+    """Trigger a new SOS request. Notifies accepted emergency contacts with location."""
     service = EmergencyService(db)
-    return await service.trigger_sos(current_user.id, data)
+    sos = await service.trigger_sos(current_user.id, data)
+
+    # Notify accepted emergency contacts (failure is non-fatal)
+    try:
+        from app.services.contact_request_service import ContactRequestService
+        contact_svc = ContactRequestService(db)
+        await contact_svc.notify_contacts_of_sos(
+            user_id=current_user.id,
+            user_name=current_user.full_name,
+            sos_id=sos.id,
+            lat=data.location_lat,
+            lng=data.location_lng,
+        )
+    except Exception:
+        pass  # SOS already created; contact notification failure must not abort
+
+    return sos
 
 @router.patch("/location", response_model=SOSRequestSchema)
 async def update_sos_location(

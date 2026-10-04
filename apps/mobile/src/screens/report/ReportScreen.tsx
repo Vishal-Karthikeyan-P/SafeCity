@@ -27,11 +27,13 @@ import { IncidentsApi, CreateIncidentPayload } from '../../api/incidents';
 import { Colors } from '../../constants/colors';
 import { DEFAULT_COORDS } from '../../config/env';
 import { SeverityLevel } from '../../types';
+import { useTheme } from '../../store/themeStore';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'Report'>;
 
 export const ReportScreen: React.FC<Props> = ({ navigation }) => {
   const queryClient = useQueryClient();
+  const { colors } = useTheme();
 
   // Form Fields
   const [title, setTitle] = useState('');
@@ -302,7 +304,7 @@ export const ReportScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <Header

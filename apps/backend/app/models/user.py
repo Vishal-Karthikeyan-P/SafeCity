@@ -41,6 +41,8 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
     )
+    # Expo push notification token — registered by mobile client on login/startup
+    push_token: Mapped[Optional[str]] = mapped_column(sa.String(512), nullable=True)
 
     # Relationships
     profile: Mapped[Optional["UserProfile"]] = relationship(

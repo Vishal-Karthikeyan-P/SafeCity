@@ -18,6 +18,7 @@ import { RoutesApi } from '../../api/routes';
 import { Colors } from '../../constants/colors';
 import { DEFAULT_COORDS } from '../../config/env';
 import { RouteData, RoutePlanResponse } from '../../types';
+import { useTheme } from '../../store/themeStore';
 import {
   decodePolyline,
   formatDistance,
@@ -39,6 +40,7 @@ const ROUTE_COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
 export const SafeRouteScreen: React.FC = () => {
   // ─── 1. Route Points State ──────────────────────────────────────────────────
+  const { colors } = useTheme();
   const [startLocation, setStartLocation] = useState<LocationPoint>({
     name: 'Current Location',
     latitude: DEFAULT_COORDS.latitude,
@@ -578,7 +580,7 @@ export const SafeRouteScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* ── Top Floating Location Card ────────────────────────────────────── */}
       <View style={[styles.topCard, { paddingTop: Math.max(insets.top, 12) }]}>
         {/* Start Point Row */}

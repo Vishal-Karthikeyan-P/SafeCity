@@ -16,6 +16,7 @@ export type MainStackParamList = {
   MainTabs: undefined;
   ActiveSOS: { autoTrigger?: boolean } | undefined;
   EmergencyContacts: undefined;
+  SafeCityContacts: undefined;
   MyIncidents: undefined;
 };
 
