@@ -16,7 +16,7 @@ import random
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
@@ -231,14 +231,28 @@ CATEGORIES_DATA = [
     {"name": "Fire & Electrical Hazard", "slug": "fire_hazard", "icon": "🔥", "color": "#D97706"},
 ]
 
-FIRST_NAMES = [
-    "Aarav", "Ananya", "Rohan", "Priya", "Vikram", "Neha", "Rahul", "Sneha",
-    "Aditya", "Kavya", "Siddharth", "Meera", "Arjun", "Pooja", "Karan", "Divya",
-    "Varun", "Riya", "Akash", "Shreya", "Nikhil", "Tanvi", "Suresh", "Lakshmi", "Rajesh"
-]
-LAST_NAMES = [
-    "Sharma", "Verma", "Patel", "Rao", "Nair", "Gupta", "Kumar", "Singh",
-    "Joshi", "Deshmukh", "Reddy", "Iyer", "Kulkarni", "Mehta", "Bhat"
+# Accounts that must survive the cleanup (existing accounts, passwords untouched)
+KEEP_EMAILS = {
+    "admin@safecity.com",              # System Administrator
+    "vishalkarthikeyanp@gmail.com",    # Vishal Karthikeyan. P
+    "25mx203@psgtech.ac.in",           # Pradeep
+}
+
+# 12 demo citizens: 6 male + 6 female, Tamil names, no caste surnames.
+# Login: <email> / <password>
+DEMO_USERS = [
+    {"name": "Senthil Nathan",  "email": "senthil@safecity.com",   "password": "Senthil@123"},
+    {"name": "Yazhini Devi",    "email": "yazhini@safecity.com",   "password": "Yazhini@123"},
+    {"name": "Gokul Raj",       "email": "gokul@safecity.com",     "password": "Gokul@123"},
+    {"name": "Kaviya Shree",    "email": "kaviya@safecity.com",    "password": "Kaviya@123"},
+    {"name": "Mugilan Selvam",  "email": "mugilan@safecity.com",   "password": "Mugilan@123"},
+    {"name": "Nandhini Priya",  "email": "nandhini@safecity.com",  "password": "Nandhini@123"},
+    {"name": "Bharath Kannan",  "email": "bharath@safecity.com",   "password": "Bharath@123"},
+    {"name": "Abirami Selvi",   "email": "abirami@safecity.com",   "password": "Abirami@123"},
+    {"name": "Ezhil Arasan",    "email": "ezhil@safecity.com",     "password": "Ezhil@123"},
+    {"name": "Iniya Lakshmi",   "email": "iniya@safecity.com",     "password": "Iniya@123"},
+    {"name": "Vetri Selvan",    "email": "vetri@safecity.com",     "password": "Vetri@123"},
+    {"name": "Tamilarasi Meena","email": "tamilarasi@safecity.com","password": "Tamilarasi@123"},
 ]
 
 SAMPLE_IMAGE_URLS = [
@@ -321,18 +335,58 @@ async def seed_database(db: AsyncSession):
         await db.flush()
         logger.info(f"Created Admin account: {admin_email}")
 
-    # 3. Citizen Users (25)
+        # 3. Users: keep 3 existing accounts, delete everyone else, create 12 demo users
+    demo_emails = {u["email"] for u in DEMO_USERS}
+    protected = KEEP_EMAILS | demo_emails
+
+    # 3a. Find users to remove and delete the rows that reference them
+    result = await db.execute(select(User.id).where(User.email.notin_(protected)))
+    stale_ids = [row[0] for row in result.all()]
+    if stale_ids:
+        await db.execute(
+            delete(Notification).where(Notification.user_id.in_(stale_ids)),
+            execution_options={"synchronize_session": False},
+        )
+
+    # Clear existing incidents (moved up from the old step 4: they all get regenerated below,
+    # and reporters can't be deleted while incidents still point at them)
+    result = await db.execute(select(Incident))
+    existing = result.scalars().all()
+    if existing:
+        logger.info(f"Clearing {len(existing)} previous incidents...")
+        for inc in existing:
+            await db.delete(inc)
+        await db.flush()
+
+    if stale_ids:
+        await db.execute(
+            delete(UserProfile).where(UserProfile.user_id.in_(stale_ids)),
+            execution_options={"synchronize_session": False},
+        )
+        await db.execute(
+            delete(User).where(User.id.in_(stale_ids)),
+            execution_options={"synchronize_session": False},
+        )
+        await db.flush()
+        logger.info(f"Deleted {len(stale_ids)} old users.")
+
+    # 3b. Retained accounts + 12 demo users = 15 users total
     users = [admin_user]
-    for i in range(25):
-        fname = FIRST_NAMES[i % len(FIRST_NAMES)]
-        lname = LAST_NAMES[i % len(LAST_NAMES)]
-        email = f"{fname.lower()}.{lname.lower()}{i+1}@safecity.demo"
+    for email in ("vishalkarthikeyanp@gmail.com", "25mx203@psgtech.ac.in"):
         result = await db.execute(select(User).where(User.email == email))
+        kept = result.scalar_one_or_none()
+        if kept:
+            users.append(kept)
+        else:
+            logger.warning(f"Expected existing account not found: {email}")
+
+    for i, spec in enumerate(DEMO_USERS):
+        result = await db.execute(select(User).where(User.email == spec["email"]))
         user = result.scalar_one_or_none()
         if not user:
             user = User(
-                email=email, full_name=f"{fname} {lname}",
-                hashed_password=get_password_hash("CitizenPass123!"),
+                email=spec["email"], full_name=spec["name"],
+                hashed_password=get_password_hash(spec["password"]),
                 role=UserRole.CITIZEN, is_active=True, is_verified=True,
                 created_at=datetime.now(timezone.utc) - timedelta(days=random.randint(30, 180))
             )
@@ -340,11 +394,16 @@ async def seed_database(db: AsyncSession):
             await db.flush()
             db.add(UserProfile(
                 user_id=user.id,
-                avatar_url=f"https://api.dicebear.com/7.x/avataaars/svg?seed={fname}{lname}",
+                avatar_url=f"https://api.dicebear.com/7.x/avataaars/svg?seed={spec['name'].replace(' ', '')}",
                 phone=f"+9198{random.randint(10000000, 99999999)}",
-                bio=f"Active citizen contributor in Coimbatore.",
+                bio="Active citizen contributor in Coimbatore.",
                 city="Coimbatore", country="India"
             ))
+            await db.flush()
+        else:
+            # re-runs: keep the documented demo password valid
+            user.hashed_password = get_password_hash(spec["password"])
+            user.is_active = True
             await db.flush()
         users.append(user)
     logger.info(f"Ensured {len(users)} users.")
