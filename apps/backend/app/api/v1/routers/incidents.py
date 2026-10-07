@@ -144,6 +144,49 @@ async def create_incident(
     return await service.create_incident(data, current_user)
 
 
+@router.get("/my/stats")
+async def my_incident_stats(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Per-status counts + this-month total for the authenticated user.
+    Uses COALESCE(reporter_id, anonymous_reporter_id) so anonymous reports are included.
+    """
+    from sqlalchemy import case, extract, func, or_, select
+    from app.models.incident import Incident, IncidentStatus
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    uid = str(current_user.id)
+    owner_cond = or_(
+        Incident.reporter_id == uid,
+        Incident.anonymous_reporter_id == uid,
+    )
+    base = select(Incident.status, func.count(Incident.id).label("cnt")).where(
+        owner_cond, Incident.deleted_at.is_(None)
+    ).group_by(Incident.status)
+
+    rows = (await db.execute(base)).all()
+    status_counts: dict = {r[0].value if hasattr(r[0], "value") else str(r[0]): int(r[1]) for r in rows}
+    total = sum(status_counts.values())
+
+    # This-month count
+    month_q = select(func.count(Incident.id)).where(
+        owner_cond,
+        Incident.deleted_at.is_(None),
+        extract("year", Incident.created_at) == now.year,
+        extract("month", Incident.created_at) == now.month,
+    )
+    this_month = (await db.execute(month_q)).scalar_one()
+
+    return {
+        "total": total,
+        "this_month": int(this_month),
+        "by_status": status_counts,
+    }
+
+
 @router.get("/my", response_model=IncidentListResponse)
 async def list_my_incidents(
     page: int = 1,

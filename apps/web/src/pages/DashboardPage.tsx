@@ -1,16 +1,26 @@
 import { Link } from 'react-router-dom'
 import {
   AlertTriangle, Plus, TrendingUp, Clock, CheckCircle, XCircle,
-  Bell, MapPin, Eye
+  Bell, MapPin, Eye, FileText, ShieldCheck, RefreshCw, AlertCircle, CalendarDays
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { IncidentCard } from '@/components/incidents/IncidentCard'
-import { useMyIncidents } from '@/api/incidents'
+import { useMyIncidents, useMyIncidentStats } from '@/api/incidents'
 import { useNotifications, useMarkAllRead } from '@/api/user'
 import { useAuthStore } from '@/store/auth'
 import { timeAgo, toTitleCase } from '@/lib/utils'
+
+// Status display config — covers every IncidentStatus value
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
+  pending:              { label: 'Pending Review',      color: 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20',   icon: Clock },
+  under_review:         { label: 'Under Review',        color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20',         icon: Eye },
+  approved:             { label: 'Approved',            color: 'text-green-600 bg-green-50 dark:bg-green-900/20',      icon: CheckCircle },
+  rejected:             { label: 'Rejected',            color: 'text-red-600 bg-red-50 dark:bg-red-900/20',            icon: XCircle },
+  resolved_unverified:  { label: 'Resolved (Unverified)', color: 'text-teal-600 bg-teal-50 dark:bg-teal-900/20',      icon: RefreshCw },
+  resolved:             { label: 'Resolved',            color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20', icon: ShieldCheck },
+}
 
 function StatCard({ icon: Icon, label, value, color }: any) {
   return (
@@ -30,6 +40,7 @@ function StatCard({ icon: Icon, label, value, color }: any) {
 export function DashboardPage() {
   const user = useAuthStore((s) => s.user)
   const { data: myIncidentsData, isLoading: loadingIncidents } = useMyIncidents(1, 5)
+  const { data: stats, isLoading: statsLoading } = useMyIncidentStats()
   const { data: notifData, isLoading: loadingNotifs } = useNotifications()
   const { mutate: markAllRead } = useMarkAllRead()
 
@@ -40,10 +51,16 @@ export function DashboardPage() {
   ).slice(0, 3)
   const unread = notifData?.unread_count ?? 0
 
-  // Stats from my incidents
-  const total = myIncidentsData?.total ?? 0
-  const pending = incidents.filter((i) => i.status === 'pending').length
-  const approved = incidents.filter((i) => i.status === 'approved').length
+  // Accurate counts from the dedicated stats endpoint (GROUP BY, not paginated slice)
+  const total = stats?.total ?? 0
+  const thisMonth = stats?.this_month ?? 0
+  const byStatus = stats?.by_status ?? {}
+
+  // Only show statuses that have at least 1 incident OR always show known statuses (ordered)
+  const STATUS_ORDER = ['pending', 'under_review', 'approved', 'rejected', 'resolved_unverified', 'resolved']
+  const statusRows = STATUS_ORDER
+    .map((key) => ({ key, count: byStatus[key] ?? 0, ...STATUS_CONFIG[key] }))
+    .filter((r) => r.count > 0)
 
   return (
     <div className="space-y-8">
@@ -65,13 +82,67 @@ export function DashboardPage() {
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={AlertTriangle} label="Total Reports" value={total} color="bg-blue-500" />
-        <StatCard icon={Clock} label="Pending" value={pending} color="bg-yellow-500" />
-        <StatCard icon={CheckCircle} label="Approved" value={approved} color="bg-green-500" />
-        <StatCard icon={TrendingUp} label="This Month" value={total} color="bg-purple-500" />
+      {/* Stats row: Total + Status Breakdown + This Month */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Total Reports */}
+        <StatCard
+          icon={FileText}
+          label="Total Reports"
+          value={statsLoading ? '—' : total}
+          color="bg-blue-500"
+        />
+
+        {/* Status Breakdown — replaces old Pending + Approved */}
+        <Card className="sm:col-span-1 relative overflow-hidden">
+          <CardHeader className="pb-2 pt-4 px-5">
+            <CardTitle className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
+              <AlertCircle className="w-4 h-4" />
+              Status Breakdown
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-5 pb-4 space-y-1.5">
+            {statsLoading ? (
+              <div className="space-y-2 animate-pulse">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-5 bg-muted rounded w-full" />
+                ))}
+              </div>
+            ) : statusRows.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-2">No incidents yet.</p>
+            ) : (
+              statusRows.map(({ key, label, count, color, icon: Icon }) => (
+                <div
+                  key={key}
+                  className={`flex items-center justify-between px-2.5 py-1 rounded-lg text-xs font-medium ${color}`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Icon className="w-3.5 h-3.5" />
+                    {label}
+                  </span>
+                  <span className="font-bold">{count}</span>
+                </div>
+              ))
+            )}
+            {/* Sanity check: ensure breakdown sums to total */}
+            {!statsLoading && total > 0 && (
+              <div className="flex items-center justify-between px-2.5 pt-1 border-t border-border/50 text-xs text-muted-foreground font-semibold mt-1">
+                <span>Total</span>
+                <span>{total}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* This Month */}
+        <StatCard
+          icon={CalendarDays}
+          label="Reported This Month"
+          value={statsLoading ? '—' : thisMonth}
+          color="bg-purple-500"
+        />
       </div>
+
+
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent reports */}

@@ -28,6 +28,25 @@ export function useMyIncidents(page = 1, limit = 10) {
   })
 }
 
+// ── My incident stats (per-status counts, no pagination issues) ──
+export interface MyIncidentStats {
+  total: number
+  this_month: number
+  by_status: Record<string, number>
+}
+
+export function useMyIncidentStats() {
+  return useQuery<MyIncidentStats>({
+    queryKey: ['my-incident-stats'],
+    queryFn: async () => {
+      const res = await api.get('/incidents/my/stats')
+      return res.data
+    },
+    staleTime: 30_000,
+  })
+}
+
+
 // ── Single incident ────────────────────────────────────────────
 export function useIncident(id: string) {
   return useQuery({
@@ -127,6 +146,7 @@ export function useCreateIncident() {
     onSuccess: (incident) => {
       qc.invalidateQueries({ queryKey: ['incidents'] })
       qc.invalidateQueries({ queryKey: ['my-incidents'] })
+      qc.invalidateQueries({ queryKey: ['my-incident-stats'] })
       toast.success('Incident reported successfully!')
       return incident
     },
