@@ -13,6 +13,7 @@ const getL = () => (typeof window !== 'undefined' ? (window as any).L : null) ||
 // score (0-100) -> colour, built once
 const RISK_LUT = Array.from({ length: 101 }, (_, s) => scoreToRgb(s))
 const RISK_TILE_PX = 64   // pixels drawn per 256px tile; the browser upscales and smooths it
+const NO_DATA_ALPHA = 90   // faint blue where no reports exist nearby
 let heatPluginPromise: Promise<unknown> | null = null
 const ensureHeatPlugin = () => {
   if (!heatPluginPromise) {
@@ -488,13 +489,15 @@ export function IncidentMap({
     }
   }, [allRoutes, selectedRouteIdx, routeData])
 
-  // Risk overlay as a tile layer: only visible tiles are drawn, each at low resolution
+  // Risk overlay as a tile layer: covers the whole map at every zoom, only visible tiles are drawn
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !riskGrid?.bounds || !riskGrid.rows || !riskGrid.cols) return
+    if (!map || !riskGrid) return            // undefined = overlay switched off
     const Leaflet = getL()
-    const { rows, cols, scores, counts, bounds } = riskGrid
-    const [[south, west], [north, east]] = bounds
+
+    const empty = !riskGrid.bounds || !riskGrid.rows || !riskGrid.cols   // no incidents at all -> all "no data"
+    const { rows = 0, cols = 0, scores = [], counts = [] } = riskGrid
+    const [[south, west], [north, east]] = riskGrid.bounds ?? [[0, 0], [0, 0]]
     const latSpan = north - south
     const lngSpan = east - west
     const has = counts.map((c) => (c > 0 ? 1 : 0))   // 0 = no reports nearby -> faint
@@ -510,6 +513,9 @@ export function IncidentMap({
         ty
       )
     }
+    // Outside the grid the true score is 100 with no reports (the grid already includes a 1 km margin)
+    const [nr, ng, nb] = RISK_LUT[100]
+    const noDataFill = `rgba(${nr},${ng},${nb},${NO_DATA_ALPHA / 255})`
 
     const RiskLayer = Leaflet.GridLayer.extend({
       createTile(coords: any) {
@@ -521,25 +527,37 @@ export function IncidentMap({
         const size = this.getTileSize()
         const nw = map.unproject([coords.x * size.x, coords.y * size.y], coords.z)
         const se = map.unproject([(coords.x + 1) * size.x, (coords.y + 1) * size.y], coords.z)
-        if (se.lat > north || nw.lat < south || nw.lng > east || se.lng < west) return tile  // outside grid
+
+        // Tile entirely outside the grid: one solid fill
+        if (empty || se.lat > north || nw.lat < south || nw.lng > east || se.lng < west) {
+          ctx.fillStyle = noDataFill
+          ctx.fillRect(0, 0, RISK_TILE_PX, RISK_TILE_PX)
+          return tile
+        }
 
         const img = ctx.createImageData(RISK_TILE_PX, RISK_TILE_PX)
         const d = img.data
         const step = size.y / RISK_TILE_PX
         for (let py = 0; py < RISK_TILE_PX; py++) {
           const lat = map.unproject([coords.x * size.x, coords.y * size.y + (py + 0.5) * step], coords.z).lat
-          if (lat > north || lat < south) continue
+          const rowOut = lat > north || lat < south
           const fy = ((north - lat) / latSpan) * rows - 0.5
           for (let px = 0; px < RISK_TILE_PX; px++) {
             const lng = nw.lng + ((px + 0.5) / RISK_TILE_PX) * (se.lng - nw.lng)
-            if (lng < west || lng > east) continue
+            const i = (py * RISK_TILE_PX + px) * 4
+            if (rowOut || lng < west || lng > east) {          // outside the grid: no-data blue
+              d[i] = nr
+              d[i + 1] = ng
+              d[i + 2] = nb
+              d[i + 3] = NO_DATA_ALPHA
+              continue
+            }
             const fx = ((lng - west) / lngSpan) * cols - 0.5
             const [r, g, b] = RISK_LUT[Math.max(0, Math.min(100, Math.round(sample(scores, fx, fy))))]
-            const i = (py * RISK_TILE_PX + px) * 4
             d[i] = r
             d[i + 1] = g
             d[i + 2] = b
-            d[i + 3] = Math.round(90 + 165 * sample(has, fx, fy))
+            d[i + 3] = Math.round(NO_DATA_ALPHA + (255 - NO_DATA_ALPHA) * sample(has, fx, fy))
           }
         }
         ctx.putImageData(img, 0, 0)
@@ -551,7 +569,7 @@ export function IncidentMap({
       tileSize: 256,
       opacity: 0.45,
       zIndex: 2,
-      updateWhenZooming: false,   // don't redraw tiles mid-zoom
+      updateWhenZooming: false,
       keepBuffer: 2,
     }).addTo(map)
     return () => { map.removeLayer(layer) }
