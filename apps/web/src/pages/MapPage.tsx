@@ -16,7 +16,7 @@ import { useIncidents, useCategories, useHeatmap } from '@/api/incidents'
 import { SearchableCategorySelect } from '@/components/incidents/SearchableCategorySelect'
 import { useAreaSafetyScore, useCitySafetyOverview, useRiskGrid } from '@/api/safety'
 import { RISK_LEGEND_GRADIENT } from '@/lib/riskColor'
-import type { AreaSafetyScore, CitySafetyOverview } from '@/types'
+import type { AreaSafetyScore, CitySafetyOverview, Incident } from '@/types'
 
 type ViewMode = 'markers' | 'heatmap' | 'both'
 const AREA_RADIUS_KM = 1.0
@@ -165,6 +165,8 @@ function RecentActivityList({ incidents }: { incidents: CitySafetyOverview['rece
   )
 }
 
+const EMPTY_INCIDENTS: Incident[] = []
+
 export function MapPage() {
   const navigate = useNavigate()
   const [viewMode, setViewMode] = useState<ViewMode>('both')
@@ -203,10 +205,10 @@ export function MapPage() {
 
   const { data: categories = [] } = useCategories()
   const { data: incidentsData, isLoading: incidentsLoading } = useIncidents(incidentFilters)
-  const incidents = incidentsData?.items ?? []
+  const incidents = incidentsData?.items ?? EMPTY_INCIDENTS
 
   const { data: unverifiedData } = useIncidents(unverifiedFilters)
-  const unverifiedIncidents = showUnverified ? (unverifiedData?.items ?? []) : []
+  const unverifiedIncidents = showUnverified ? (unverifiedData?.items ?? EMPTY_INCIDENTS) : EMPTY_INCIDENTS
   const { data: riskGrid, isLoading: riskLoading } = useRiskGrid(viewMode !== 'markers')
   const { data: cityOverview } = useCitySafetyOverview()   // still used by Recent Activity
   const { data: areaScore, isLoading: areaLoading } = useAreaSafetyScore(
@@ -507,8 +509,8 @@ export function MapPage() {
           )}
 
           <IncidentMap
-            incidents={showMarkers ? incidents : []}
-            unverifiedIncidents={showMarkers ? unverifiedIncidents : []}
+            incidents={showMarkers ? incidents : EMPTY_INCIDENTS}
+            unverifiedIncidents={showMarkers ? unverifiedIncidents : EMPTY_INCIDENTS}
             riskGrid={showHeatmap ? riskGrid : undefined}
             areaRadiusKm={AREA_RADIUS_KM}
             center={clickedLocation ? [clickedLocation.lat, clickedLocation.lng] : (userLocation ?? [11.0168, 76.9558])}

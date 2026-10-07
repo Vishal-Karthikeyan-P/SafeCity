@@ -10,7 +10,9 @@ import type { RiskGrid } from '@/api/safety'
 
 // Helper to get global L or fallback (dynamic evaluation to ensure CDN extensions are ready)
 const getL = () => (typeof window !== 'undefined' ? (window as any).L : null) || L
-
+// score (0-100) -> colour, built once
+const RISK_LUT = Array.from({ length: 101 }, (_, s) => scoreToRgb(s))
+const RISK_TILE_PX = 64   // pixels drawn per 256px tile; the browser upscales and smooths it
 let heatPluginPromise: Promise<unknown> | null = null
 const ensureHeatPlugin = () => {
   if (!heatPluginPromise) {
@@ -486,31 +488,74 @@ export function IncidentMap({
     }
   }, [allRoutes, selectedRouteIdx, routeData])
 
-  // Risk overlay: each pixel = area safety score; the browser smooths the small image into a gradient
+  // Risk overlay as a tile layer: only visible tiles are drawn, each at low resolution
   useEffect(() => {
     const map = mapRef.current
     if (!map || !riskGrid?.bounds || !riskGrid.rows || !riskGrid.cols) return
     const Leaflet = getL()
     const { rows, cols, scores, counts, bounds } = riskGrid
-    const canvas = document.createElement('canvas')
-    canvas.width = cols
-    canvas.height = rows
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    const img = ctx.createImageData(cols, rows)
-    for (let i = 0; i < rows * cols; i++) {
-      const [r, g, b] = scoreToRgb(scores[i])
-      img.data[i * 4] = r
-      img.data[i * 4 + 1] = g
-      img.data[i * 4 + 2] = b
-      img.data[i * 4 + 3] = counts[i] === 0 ? 90 : 255   // faint = no reports nearby
+    const [[south, west], [north, east]] = bounds
+    const latSpan = north - south
+    const lngSpan = east - west
+    const has = counts.map((c) => (c > 0 ? 1 : 0))   // 0 = no reports nearby -> faint
+    const at = (arr: number[], r: number, c: number) =>
+      arr[Math.min(rows - 1, Math.max(0, r)) * cols + Math.min(cols - 1, Math.max(0, c))]
+    const lerp = (a: number, b: number, t: number) => a + (b - a) * t
+    const sample = (arr: number[], fx: number, fy: number) => {
+      const c0 = Math.floor(fx), r0 = Math.floor(fy)
+      const tx = fx - c0, ty = fy - r0
+      return lerp(
+        lerp(at(arr, r0, c0), at(arr, r0, c0 + 1), tx),
+        lerp(at(arr, r0 + 1, c0), at(arr, r0 + 1, c0 + 1), tx),
+        ty
+      )
     }
-    ctx.putImageData(img, 0, 0)
-    const layer = Leaflet.imageOverlay(canvas.toDataURL(), bounds, { opacity: 0.45, interactive: false })
-    layer.addTo(map)
+
+    const RiskLayer = Leaflet.GridLayer.extend({
+      createTile(coords: any) {
+        const tile = document.createElement('canvas')
+        tile.width = RISK_TILE_PX
+        tile.height = RISK_TILE_PX
+        const ctx = tile.getContext('2d')
+        if (!ctx) return tile
+        const size = this.getTileSize()
+        const nw = map.unproject([coords.x * size.x, coords.y * size.y], coords.z)
+        const se = map.unproject([(coords.x + 1) * size.x, (coords.y + 1) * size.y], coords.z)
+        if (se.lat > north || nw.lat < south || nw.lng > east || se.lng < west) return tile  // outside grid
+
+        const img = ctx.createImageData(RISK_TILE_PX, RISK_TILE_PX)
+        const d = img.data
+        const step = size.y / RISK_TILE_PX
+        for (let py = 0; py < RISK_TILE_PX; py++) {
+          const lat = map.unproject([coords.x * size.x, coords.y * size.y + (py + 0.5) * step], coords.z).lat
+          if (lat > north || lat < south) continue
+          const fy = ((north - lat) / latSpan) * rows - 0.5
+          for (let px = 0; px < RISK_TILE_PX; px++) {
+            const lng = nw.lng + ((px + 0.5) / RISK_TILE_PX) * (se.lng - nw.lng)
+            if (lng < west || lng > east) continue
+            const fx = ((lng - west) / lngSpan) * cols - 0.5
+            const [r, g, b] = RISK_LUT[Math.max(0, Math.min(100, Math.round(sample(scores, fx, fy))))]
+            const i = (py * RISK_TILE_PX + px) * 4
+            d[i] = r
+            d[i + 1] = g
+            d[i + 2] = b
+            d[i + 3] = Math.round(90 + 165 * sample(has, fx, fy))
+          }
+        }
+        ctx.putImageData(img, 0, 0)
+        return tile
+      },
+    })
+
+    const layer = new RiskLayer({
+      tileSize: 256,
+      opacity: 0.45,
+      zIndex: 2,
+      updateWhenZooming: false,   // don't redraw tiles mid-zoom
+      keepBuffer: 2,
+    }).addTo(map)
     return () => { map.removeLayer(layer) }
   }, [riskGrid])
-
   // 1 km radius circle for the selected location (transparent, never blocks clicks)
   useEffect(() => {
     const map = mapRef.current
