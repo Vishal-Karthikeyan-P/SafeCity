@@ -5,6 +5,8 @@ import 'leaflet'
 import * as polyline from '@mapbox/polyline'
 import type { Incident, RouteData } from '@/types'
 import { toTitleCase } from '@/lib/utils'
+import { scoreToRgb } from '@/lib/riskColor'
+import type { RiskGrid } from '@/api/safety'
 
 // Helper to get global L or fallback (dynamic evaluation to ensure CDN extensions are ready)
 const getL = () => (typeof window !== 'undefined' ? (window as any).L : null) || L
@@ -138,6 +140,8 @@ interface IncidentMapProps {
   allRoutes?: RouteData[]
   /** Index of the currently selected route in allRoutes */
   selectedRouteIdx?: number
+  riskGrid?: RiskGrid | null
+  areaRadiusKm?: number
 }
 
 export function IncidentMap({
@@ -154,6 +158,8 @@ export function IncidentMap({
   routeData,
   allRoutes,
   selectedRouteIdx = 0,
+  riskGrid,
+  areaRadiusKm
 }: IncidentMapProps) {
   const mapRef = useRef<L.Map | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -479,6 +485,46 @@ export function IncidentMap({
       }
     }
   }, [allRoutes, selectedRouteIdx, routeData])
+
+  // Risk overlay: each pixel = area safety score; the browser smooths the small image into a gradient
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !riskGrid?.bounds || !riskGrid.rows || !riskGrid.cols) return
+    const Leaflet = getL()
+    const { rows, cols, scores, counts, bounds } = riskGrid
+    const canvas = document.createElement('canvas')
+    canvas.width = cols
+    canvas.height = rows
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const img = ctx.createImageData(cols, rows)
+    for (let i = 0; i < rows * cols; i++) {
+      const [r, g, b] = scoreToRgb(scores[i])
+      img.data[i * 4] = r
+      img.data[i * 4 + 1] = g
+      img.data[i * 4 + 2] = b
+      img.data[i * 4 + 3] = counts[i] === 0 ? 90 : 255   // faint = no reports nearby
+    }
+    ctx.putImageData(img, 0, 0)
+    const layer = Leaflet.imageOverlay(canvas.toDataURL(), bounds, { opacity: 0.45, interactive: false })
+    layer.addTo(map)
+    return () => { map.removeLayer(layer) }
+  }, [riskGrid])
+
+  // 1 km radius circle for the selected location (transparent, never blocks clicks)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !selectedLocation || !areaRadiusKm) return
+    const Leaflet = getL()
+    const circle = Leaflet.circle([selectedLocation.lat, selectedLocation.lng], {
+      radius: areaRadiusKm * 1000,
+      color: '#1d4ed8', weight: 2, opacity: 0.8, dashArray: '8 6',
+      fillColor: '#3b82f6', fillOpacity: 0.05,
+      interactive: false,
+    }).addTo(map)
+    return () => { map.removeLayer(circle) }
+  }, [selectedLocation, areaRadiusKm])
+
 
   return (
     <div

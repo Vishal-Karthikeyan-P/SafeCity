@@ -38,3 +38,22 @@ export function useCitySafetyOverview(
     staleTime: 60_000,
   })
 }
+
+export interface RiskGrid {
+  bounds: [[number, number], [number, number]] | null
+  rows: number
+  cols: number
+  cell_m: number
+  radius_km: number
+  scores: number[]
+  counts: number[]
+}
+
+export function useRiskGrid(enabled = true) {
+  return useQuery({
+    queryKey: ['risk-grid'],
+    queryFn: async () => (await api.get('/safety/risk-grid')).data as RiskGrid,
+    enabled,
+    staleTime: 1000 * 60 * 2,
+  })
+}

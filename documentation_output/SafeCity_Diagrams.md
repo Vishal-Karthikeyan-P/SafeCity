@@ -513,6 +513,7 @@ sequenceDiagram
     participant A as Admin Router
     participant IS as IncidentService
     participant IR as IncidentRepository
+    participant DB as PostgreSQL
     participant NR as NotificationRepository
     actor R as Reporter
 
@@ -531,9 +532,9 @@ sequenceDiagram
         IS-->>UI: HTTP 400 reason required
     else allowed
         IS->>IR: update_status + add_status_history
-        IR->>D: UPDATE incidents, INSERT incident_status_history
+        IR->>DB: UPDATE incidents, INSERT incident_status_history
         IS->>NR: create(INCIDENT_UPDATE to reporter or anonymous_reporter_id)
-        NR->>D: INSERT notifications
+        NR->>DB: INSERT notifications
         IS-->>UI: updated IncidentSchema
         UI-->>AD: status badge updated
         NR-->>R: in-app notification of status change

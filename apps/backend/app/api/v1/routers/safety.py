@@ -41,3 +41,9 @@ async def get_city_overview(
     """
     service = SafetyScoreService(db)
     return await service.get_city_overview(city_lat, city_lng, radius_km)
+@router.get("/risk-grid")
+async def get_risk_grid(
+    cell_m: float = Query(250, ge=100, le=2000),
+    db: AsyncSession = Depends(get_db),
+):
+    return await SafetyScoreService(db).get_risk_grid(cell_m=cell_m)

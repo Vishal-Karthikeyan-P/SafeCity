@@ -14,10 +14,12 @@ import {
 import { Eye, EyeOff } from 'lucide-react'
 import { useIncidents, useCategories, useHeatmap } from '@/api/incidents'
 import { SearchableCategorySelect } from '@/components/incidents/SearchableCategorySelect'
-import { useAreaSafetyScore, useCitySafetyOverview } from '@/api/safety'
+import { useAreaSafetyScore, useCitySafetyOverview, useRiskGrid } from '@/api/safety'
+import { RISK_LEGEND_GRADIENT } from '@/lib/riskColor'
 import type { AreaSafetyScore, CitySafetyOverview } from '@/types'
 
 type ViewMode = 'markers' | 'heatmap' | 'both'
+const AREA_RADIUS_KM = 1.0
 
 function riskColor(level?: string) {
   if (level === 'safe') return 'text-green-500'
@@ -58,54 +60,6 @@ function ScoreRing({ score }: { score: number }) {
       </svg>
       <span className="text-xl font-bold relative z-10">{Math.round(score)}</span>
     </div>
-  )
-}
-
-function CityOverviewCard({ data, isLoading }: { data?: CitySafetyOverview; isLoading: boolean }) {
-  if (isLoading) {
-    return (
-      <Card className="border-muted">
-        <CardContent className="p-4 flex items-center gap-3 animate-pulse">
-          <div className="w-16 h-16 rounded-full bg-muted shrink-0" />
-          <div className="flex-1 space-y-2">
-            <div className="h-4 bg-muted rounded w-2/3" />
-            <div className="h-3 bg-muted rounded w-1/2" />
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (!data) return null
-
-  return (
-    <Card className={`border ${riskBg(data.risk_level)} shadow-sm`}>
-      <CardHeader className="pb-1 pt-3 px-4">
-        <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-          <BarChart3 className="w-3.5 h-3.5" />
-          City Safety Score
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="px-4 pb-4 pt-1">
-        <div className="flex items-center gap-4">
-          <ScoreRing score={data.score} />
-          <div className="flex-1 min-w-0">
-            <p className={`text-base font-bold ${riskColor(data.risk_level)}`}>{riskLabel(data.risk_level)}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              <span className="font-semibold text-foreground">{data.total_incident_count}</span> total incidents
-            </p>
-            {data.top_category && (
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                Top risk: <span className="font-semibold text-foreground">{data.top_category.icon} {data.top_category.name}</span>
-              </p>
-            )}
-            <p className="text-xs text-muted-foreground mt-0.5">
-              <span className="font-semibold text-foreground">{data.recent_7d_count}</span> new in last 7 days
-            </p>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   )
 }
 
@@ -228,13 +182,6 @@ export function MapPage() {
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [showUnverified, setShowUnverified] = useState(true)
 
-  const heatmapFilters = useMemo(() => ({
-    category_id: filterCategory ?? undefined,
-    severity: filterSeverity ?? undefined,
-    date_from: filterDateFrom || undefined,
-    date_to: filterDateTo || undefined,
-  }), [filterCategory, filterSeverity, filterDateFrom, filterDateTo])
-
   const incidentFilters = useMemo(() => ({
     category_id: filterCategory ?? undefined,
     severity: (filterSeverity as any) ?? undefined,
@@ -260,14 +207,12 @@ export function MapPage() {
 
   const { data: unverifiedData } = useIncidents(unverifiedFilters)
   const unverifiedIncidents = showUnverified ? (unverifiedData?.items ?? []) : []
-
-  const { data: heatmapData, isLoading: heatmapLoading } = useHeatmap(heatmapFilters)
-  const { data: cityOverview, isLoading: cityLoading } = useCitySafetyOverview()
-
+  const { data: riskGrid, isLoading: riskLoading } = useRiskGrid(viewMode !== 'markers')
+  const { data: cityOverview } = useCitySafetyOverview()   // still used by Recent Activity
   const { data: areaScore, isLoading: areaLoading } = useAreaSafetyScore(
     clickedLocation?.lat ?? null,
     clickedLocation?.lng ?? null,
-    1.0
+    AREA_RADIUS_KM
   )
   useEffect(() => {
     const t = setTimeout(() => window.dispatchEvent(new Event('resize')), 50)
@@ -312,8 +257,8 @@ export function MapPage() {
                 key={mode}
                 onClick={() => setViewMode(mode)}
                 className={`px-3 py-1 text-xs font-semibold rounded-md capitalize transition-all ${viewMode === mode
-                    ? 'bg-primary text-primary-foreground shadow'
-                    : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-primary text-primary-foreground shadow'
+                  : 'text-muted-foreground hover:text-foreground'
                   }`}
               >
                 {mode === 'markers' && <><MapPin className="w-3.5 h-3.5 inline mr-1" />Markers</>}
@@ -345,8 +290,8 @@ export function MapPage() {
             onClick={() => setShowUnverified((v) => !v)}
             title={showUnverified ? 'Hide unverified incidents' : 'Show unverified incidents'}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${showUnverified
-                ? 'bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-400'
-                : 'border-input text-muted-foreground hover:text-foreground'
+              ? 'bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-400'
+              : 'border-input text-muted-foreground hover:text-foreground'
               }`}
           >
             {showUnverified ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
@@ -444,8 +389,6 @@ export function MapPage() {
         {/* Left Side Panel */}
         {showSidebar && (
           <div className="w-72 xl:w-80 shrink-0 flex flex-col gap-3 p-4 overflow-y-auto border-r bg-card/50 backdrop-blur">
-            {/* City Safety Overview */}
-            <CityOverviewCard data={cityOverview} isLoading={cityLoading} />
 
             {/* Area Safety Score (on map click) */}
             {clickedLocation && (
@@ -489,16 +432,21 @@ export function MapPage() {
                 {showHeatmap && (
                   <>
                     <div className="border-t my-2" />
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-xs text-muted-foreground">Heatmap Risk Scale</span>
-                    </div>
-                    <div className="h-2.5 rounded-full w-full" style={{
-                      background: 'linear-gradient(to right, #3b82f6, #22c55e, #eab308, #f97316, #ef4444)'
-                    }} />
+                    <span className="font-semibold text-xs text-muted-foreground">Area risk (safety score)</span>
+                    <div className="h-2.5 rounded-full w-full" style={{ background: RISK_LEGEND_GRADIENT }} />
                     <div className="flex justify-between text-[10px] text-muted-foreground">
-                      <span>Low Risk</span>
-                      <span>High Risk</span>
+                      <span>Safe</span>
+                      <span>High risk</span>
                     </div>
+                    <details className="text-[11px] text-muted-foreground leading-relaxed">
+                      <summary className="cursor-pointer font-medium text-foreground">How is this coloured?</summary>
+                      <p className="mt-1">
+                        Each colour is the Area Safety Score (0–100) of a 1 km circle around that spot, the same
+                        number you get when you click the map. Incidents count by severity, category, recency and
+                        verification; repeated reports at one spot count less. Blue is safe, red is high risk.
+                        Faint blue means no reports nearby, which is unknown rather than guaranteed safe.
+                      </p>
+                    </details>
                   </>
                 )}
               </div>
@@ -519,7 +467,7 @@ export function MapPage() {
 
         {/* Map Area */}
         <div className="flex-1 relative">
-          {(heatmapLoading || incidentsLoading) && (
+          {(riskLoading || incidentsLoading) && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-card/95 backdrop-blur border px-4 py-1.5 rounded-full shadow text-xs flex items-center gap-2">
               <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
               Loading map data…
@@ -561,7 +509,8 @@ export function MapPage() {
           <IncidentMap
             incidents={showMarkers ? incidents : []}
             unverifiedIncidents={showMarkers ? unverifiedIncidents : []}
-            heatmapData={showHeatmap ? (heatmapData ?? []) : undefined}
+            riskGrid={showHeatmap ? riskGrid : undefined}
+            areaRadiusKm={AREA_RADIUS_KM}
             center={clickedLocation ? [clickedLocation.lat, clickedLocation.lng] : (userLocation ?? [11.0168, 76.9558])}
             zoom={clickedLocation ? 14 : (userLocation ? 14 : 12)}
             height="100%"

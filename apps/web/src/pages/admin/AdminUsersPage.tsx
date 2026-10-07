@@ -1,5 +1,5 @@
-﻿import { useState } from 'react'
-import { Search, Shield, Ban, CheckCircle, UserCog, Eye, Phone, MapPin, Calendar, Mail, User as UserIcon } from 'lucide-react'
+import { useState } from 'react'
+import { Search, Shield, Ban, CheckCircle, UserCog, Eye, Phone, MapPin, Calendar, Mail, User as UserIcon, FileText } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -97,14 +97,15 @@ export function AdminUsersPage() {
                   <th className="px-6 py-4">Role</th>
                   <th className="px-6 py-4">Joined</th>
                   <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4 text-center">Incidents</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {isLoading ? (
-                  <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">Loading users...</td></tr>
+                  <tr><td colSpan={6} className="p-6 text-center text-muted-foreground">Loading users...</td></tr>
                 ) : users.length === 0 ? (
-                  <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">No users found</td></tr>
+                  <tr><td colSpan={6} className="p-6 text-center text-muted-foreground">No users found</td></tr>
                 ) : (
                   users.map((user: any) => (
                     <tr key={user.id} className="hover:bg-muted/30 transition-colors">
@@ -138,6 +139,19 @@ export function AdminUsersPage() {
                         ) : (
                           <Badge variant="outline" className="border-red-200 text-red-700 bg-red-50 dark:bg-red-900/20">Inactive</Badge>
                         )}
+                      </td>
+                      {/* Incidents Reported */}
+                      <td className="px-6 py-4 text-center">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                            (user.incidents_count ?? 0) === 0
+                              ? 'bg-muted text-muted-foreground'
+                              : 'bg-primary/10 text-primary'
+                          }`}
+                        >
+                          <FileText className="w-3 h-3" />
+                          {user.incidents_count ?? 0}
+                        </span>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
@@ -250,7 +264,13 @@ export function AdminUsersPage() {
                   </p>
                   <p className="font-medium text-xs">{detailUser.profile?.phone || 'Not provided'}</p>
                 </div>
-                <div className="bg-muted/20 p-3 rounded-lg border col-span-2">
+                <div className="bg-muted/20 p-3 rounded-lg border">
+                  <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mb-1">
+                    <FileText className="w-3.5 h-3.5 text-primary" /> Incidents Reported
+                  </p>
+                  <p className="font-bold text-sm text-primary">{detailUser.incidents_count ?? 0}</p>
+                </div>
+                <div className="bg-muted/20 p-3 rounded-lg border">
                   <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mb-1">
                     <MapPin className="w-3.5 h-3.5 text-amber-500" /> Location
                   </p>

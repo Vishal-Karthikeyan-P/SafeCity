@@ -28,7 +28,7 @@ SafeCity is a full-stack, geospatial safety platform that allows citizens to rep
 
 The system is implemented as a monorepo containing three applications:
 
-1. **Backend (`apps/backend`)** — a Python FastAPI asynchronous REST API (prefix `/api/v1`) with SQLAlchemy 2.0 ORM, PostgreSQL 15 + PostGIS 3.3 spatial database, Alembic migrations, JWT (HS256) authentication with access/refresh tokens, bcrypt password hashing, OTP-based password reset via SMTP, and 12 router modules exposing approximately 90 endpoints.
+1. **Backend (`apps/backend`)** — a Python FastAPI asynchronous REST API (prefix `/api/v1`) with SQLAlchemy 2.0 ORM, PostgreSQL 15 + PostGIS 3.3 spatial database, Alembic migrations, JWT (HS256) authentication with access/refresh tokens, bcrypt password hashing, OTP-based password reset via SMTP, and 12 router modules exposing 76 endpoints (77 counting `GET /health`).
 2. **Web application (`apps/web`)** — React 18 + TypeScript + Vite single-page application using TanStack Query for server state, Zustand for authentication state, Leaflet with marker clustering and `leaflet.heat` for mapping, Recharts for administrative analytics, Zod + React Hook Form for client-side validation, and route guards for citizen/admin access control.
 3. **Mobile application (`apps/mobile`)** — React Native (Expo SDK 50) Android application with React Navigation, Expo Secure Store token storage, Expo Location GPS services, Expo push notifications, live safe-route guidance with off-route deviation detection, and SOS emergency workflows.
 
@@ -2916,7 +2916,7 @@ No code defects were fixed during documentation (modifying project files was out
 
 ## 6.21 Testing Summary
 
-The codebase is *designed for testability*: pure scoring functions, a single spatial query per request, explicit status codes, scripted service-level harnesses with cleanup, and seed data enabling repeatable scenarios. Gaps: no pytest-collectable suite, no measured coverage/latency/security-scan artefacts, and client testing is manual. Recommended next steps: convert `test_workflow.py` / `test_alerts_and_contacts.py` into pytest fixtures with a transactional PostGIS test database, add contract tests for the 90-endpoint inventory (Table 27), and record OSRM-mocked routing fixtures for deterministic route assertions.
+The codebase is *designed for testability*: pure scoring functions, a single spatial query per request, explicit status codes, scripted service-level harnesses with cleanup, and seed data enabling repeatable scenarios. Gaps: no pytest-collectable suite, no measured coverage/latency/security-scan artefacts, and client testing is manual. Recommended next steps: convert `test_workflow.py` / `test_alerts_and_contacts.py` into pytest fixtures with a transactional PostGIS test database, add contract tests for the 77-endpoint inventory (Table 27), and record OSRM-mocked routing fixtures for deterministic route assertions.
 
 ---
 
@@ -2984,7 +2984,7 @@ Re-stated as delivered outcomes: explainable scores with per-incident attributio
 
 ## 8.1 Conclusion
 
-SafeCity delivers a complete, working smart-city safety platform: citizens report and track incidents, inspect explainable safety scores and heatmaps, compare risk-ranked routes with live guidance, receive targeted alerts and notifications, and summon help through SOS; administrators moderate, analyse, publish and govern through a dedicated console. The implementation spans ~90 API endpoints, 15 database tables, ~40 web screens/components and ~45 mobile screens/components, unified by a deterministic spatial-safety model. The system is containerised, documented for free-tier hosting, and seeded for immediate demonstration.
+SafeCity delivers a complete, working smart-city safety platform: citizens report and track incidents, inspect explainable safety scores and heatmaps, compare risk-ranked routes with live guidance, receive targeted alerts and notifications, and summon help through SOS; administrators moderate, analyse, publish and govern through a dedicated console. The implementation spans 77 API endpoints, 15 database tables, ~40 web screens/components and ~45 mobile screens/components, unified by a deterministic spatial-safety model. The system is containerised, documented for free-tier hosting, and seeded for immediate demonstration.
 
 ## 8.2 Contributions
 
@@ -3079,7 +3079,272 @@ Consolidated DDL-style reference derived from the SQLAlchemy models (all PKs `St
 - `notifications(id PK, user_id FK→users CASCADE INDEX, type ENUM[15] DEFAULT system, title, message, is_read DEFAULT false INDEX, incident_id FK→incidents SET NULL NULL INDEX, sos_id FK→sos_requests SET NULL NULL, metadata_json NULL, dedup_key NULL, created_at INDEX; INDEX(user_id, created_at); INDEX(user_id, dedup_key))`
 - `community_alerts(id PK, title, message, alert_type ENUM[4] DEFAULT system_announcement INDEX, target_scope VARCHAR(30) DEFAULT all_users INDEX, location_lat/lng NULL, radius_km NULL, location_geom GEOGRAPHY NULL, is_active DEFAULT true INDEX, expires_at NULL, created_at INDEX)`
 
-<!-- APPEND_MARKER -->
+- `emergency_contacts(id PK, user_id FK→users CASCADE INDEX, name, phone, contact_relation NULL, created_at)`
+- `contact_requests(id PK, requester_id FK→users CASCADE INDEX, contact_id FK→users CASCADE INDEX, status ENUM[3] DEFAULT pending INDEX, message NULL, created_at, updated_at; UNIQUE(requester_id, contact_id))`
+- `sos_requests(id PK, user_id FK→users CASCADE INDEX, location_lat/lng NOT NULL, location_geom GEOGRAPHY NULL, status ENUM[active,resolved,false_alarm] DEFAULT active INDEX, audio_recording_url NULL, video_recording_url NULL, created_at INDEX, resolved_at NULL)`
+- `password_reset_otps(id PK, user_id FK→users CASCADE INDEX, otp_hash, expires_at, used_at NULL, attempt_count DEFAULT 0, created_at INDEX)`
+- `article_categories(id PK, name UK, slug UK INDEX, description NULL, icon, is_active DEFAULT true, created_at)`
+- `articles(id PK, title, slug UK INDEX, overview, content_dos/donts/emergency_steps/helpline_numbers/legal_info NULL, category_id FK→article_categories RESTRICT INDEX, is_published DEFAULT true, created_at, updated_at)`
+
+### Appendix B — API Endpoints
+
+**Table 27: Complete API Endpoint Inventory** (base `/api/v1`; auth = P public / U user / A admin)
+
+| Method + Path | Auth | Key behaviour |
+|---|---|---|
+| `GET /health` | P | `{status: ok}`, no DB access |
+| `POST /auth/register` | P | 201 pair / 409 duplicate / 422 |
+| `POST /auth/login` | P | 200 pair / 401 / 403 inactive |
+| `POST /auth/refresh` | P | rotates pair / 401 |
+| `POST /auth/forgot-password` | P | generic message; 60 s cooldown |
+| `POST /auth/verify-reset-otp` | P | reset JWT / 400 attempts |
+| `POST /auth/reset-password` | P | mismatch 422 / bad token 400 |
+| `GET /auth/me` | U | current user |
+| `GET /users/me` | U | profile |
+| `PUT /users/me` | U | partial update |
+| `POST /users/me/avatar` | U | image ≤ 5 MB |
+| `POST /users/me/change-password` | U | verify-current |
+| `DELETE /users/me` | U | 204 soft delete |
+| `GET /users/me/contacts` | U | phonebook list |
+| `POST /users/me/contacts` | U | 201 / 400 cap-5 |
+| `PATCH /users/me/contacts/{id}` | U | partial / 404 |
+| `DELETE /users/me/contacts/{id}` | U | 204 / 404 |
+| `POST /users/me/location` | U | 204 position write |
+| `GET /incidents/categories` | P | active; lazy seed |
+| `GET /incidents/nearby` | P | radius 0.1–50 km |
+| `GET /incidents` | P | filters/sort/page (approved default) |
+| `GET /incidents/heatmap` | P | ≤ 5000 weighted points |
+| `GET /incidents/preview-severity` | P | `{severity, score}` |
+| `POST /incidents` | U | 201 pending + engine severity |
+| `GET /incidents/my` | U | owned incl. anonymous |
+| `GET /incidents/{id}` | P | detail (anonymity stripped) |
+| `POST /incidents/{id}/images` | U | ≤ 5, ext+size checks |
+| `POST /incidents/upload-evidence` | U | evidence file → URL |
+| `POST /incidents/{id}/resolution-requests` | U | 201 / eligibility 400 |
+| `GET /incidents/{id}/resolution-requests` | P | list |
+| `POST /incidents/{id}/resolution-requests/{rid}/review` | U | approve/reject (creator) |
+| `POST /incidents/…/approve`, `…/reject` | U | shortcuts |
+| `GET /incidents/{id}/status-history` | P | audit rows |
+
+**Table 27 (continued)**
+
+| Method + Path | Auth | Key behaviour |
+|---|---|---|
+| `GET /admin/stats` | A | aggregates + users |
+| `GET /admin/incidents` | A | full filters |
+| `PATCH /admin/incidents/{id}/status` | A | matrix + reasons |
+| `DELETE /admin/incidents/{id}` | A | 204 soft delete |
+| `GET /admin/users` | A | search/role/page |
+| `PATCH /admin/users/{id}/deactivate` | A | 204 |
+| `PATCH /admin/users/{id}/activate` | A | 200 |
+| `PATCH /admin/users/{id}/role` | A | citizen/admin |
+| `GET /admin/categories` | A | all incl. inactive |
+| `POST /admin/categories` | A | 201 |
+| `PATCH /admin/categories/{id}` | A | update incl. is_active |
+| `GET /admin/alerts` | A | all alerts |
+| `POST /admin/alerts` | A | 201 + recipients_count |
+| `DELETE /admin/alerts/{id}` | A | 204 deactivate |
+| `GET /admin/articles` | A | paged |
+| `POST /admin/articles` | A | 201 auto-slug |
+| `PATCH /admin/articles/{id}` | A | update |
+| `DELETE /admin/articles/{id}` | A | 204 |
+| `GET /notifications` | U | 50 latest + unread |
+| `PATCH /notifications/{id}/read` | U | 404 foreign |
+| `POST /notifications/read-all` | U | message |
+| `GET /learning/categories` | P | list |
+| `GET /learning/articles` | P | page/filter/search |
+| `GET /learning/articles/{slug_or_id}` | P | detail / 404 |
+| `GET /alerts` | P | active non-expired page |
+| `GET /routes/plan` | P | 200 payload / 400 |
+| `GET /safety/area` | P | score payload |
+| `GET /safety/city` | P | overview payload |
+| `GET /sos/active` | U | active or null |
+| `POST /sos` | U | 201 + contact fan-out / 400 |
+| `PATCH /sos/location` | U | live update / 404 |
+| `PATCH /sos/resolve` | U | resolved/false_alarm / 404 |
+| `GET /search` | P | `q` ≥ 2; incidents + articles |
+| `GET /contacts/search` | U | `q` ≥ 2; id/name/email only |
+| `POST /contacts/requests` | U | 201 / 400 / 409 |
+| `GET /contacts/requests/incoming` | U | pending received |
+| `GET /contacts/requests/outgoing` | U | pending sent |
+| `PATCH /contacts/requests/{id}/accept` | U | recipient only |
+| `PATCH /contacts/requests/{id}/reject` | U | recipient only |
+| `DELETE /contacts/requests/{id}` | U | either party |
+| `GET /contacts` | U | accepted both directions |
+| `POST /contacts/push-token` | U | 204 / 422 prefix |
+| `POST /contacts/location-check` | U | `{triggered}` triple |
+
+### Appendix C — Test Cases
+
+The complete test-case suite (AUTH/OTP/PROF, INC/VER, SF/RT/HM, AL/CT/SOS/ADM) is presented in §6.18 as Tables 21–24 (100 cases), with execution status disclosed in §6.19. The repository's own executable verification scripts are inventoried in Table 25 (`test_workflow.py`, `test_alerts_and_contacts.py`, `test_db.py`).
+
+### Appendix D — Sample API / JSON Responses
+
+Shapes below are **constructed from the Pydantic response models and service return dicts** (field names and types verified in `app/schemas/*` and the services); values are illustrative. Marked *constructed* because no live server response was captured during documentation.
+
+**D.1 `POST /auth/login` → 200** (`TokenResponse`)
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer"
+}
+```
+
+**D.2 `GET /incidents/heatmap` → 200** (`HeatmapPoint[]`)
+
+```json
+[
+  { "lat": 11.0168, "lng": 76.9558, "weight": 3 },
+  { "lat": 11.0031, "lng": 76.9520, "weight": 1 }
+]
+```
+
+**D.3 `GET /safety/area?lat=11.0168&lng=76.9558&radius_km=1` → 200** (dict from `calculate_area_score_detailed`)
+
+```json
+{
+  "score": 63.4,
+  "risk_level": "moderate",
+  "incident_count": 12,
+  "density_per_km2": 3.82,
+  "top_categories": [{ "name": "Streetlight / Lighting Malfunction", "icon": "💡", "count": 3 }],
+  "recent_7d": 2,
+  "recent_30d": 7,
+  "severity_counts": { "critical": 1, "high": 2, "medium": 5, "low": 4 },
+  "confidence": "medium",
+  "risk_index": 0.4558,
+  "explanation": "Safety Score of 63.4 based on 12 incident(s) in a 1.0km radius (hazard load 45.6 points/km²). Includes 7 verified and 5 unverified community report(s) (unverified weighted at 20%). 2 report(s) from the last 7 days."
+}
+```
+
+**D.4 `GET /routes/plan` → 200** (abridged `RoutePlanResponse`)
+
+```json
+{
+  "routes": [
+    {
+      "label": "Safest",
+      "geometry": "_p~iF~ps|U_ulLnnqC",
+      "distance_m": 4812.7,
+      "duration_s": 657.4,
+      "eta_minutes": 11.0,
+      "safety_score": 87.3,
+      "route_risk_level": "safe",
+      "relevant_incident_count": 1,
+      "incidents_within_500m": 1,
+      "incident_free": false,
+      "risk_index": 0.1358,
+      "detour_ratio": 1.142,
+      "explanation": "Route Safety Score of 87.3 from 3 nearby incident(s) (within 500 m). 1 route-relevant hazard(s) counted, weighted by severity, recency, verification and distance; repeated reports at one spot count with diminishing weight.",
+      "incidents": [
+        { "id": "b1c2...", "title": "Pothole near Gandhipuram", "severity": "medium",
+          "distance_meters": 142.6, "is_verified": true, "is_route_relevant": true,
+          "penalty_impact": 4.62 }
+      ],
+      "risk_factors": [
+        { "icon": "🚧", "name": "Road Hazard", "count": 1, "total_penalty": 4.62 }
+      ],
+      "composite_score": 81.9,
+      "route_rank": 1,
+      "is_safest": true,
+      "is_shortest": false
+    }
+  ],
+  "recommended_route_idx": 0,
+  "shortest_route_idx": 3,
+  "safest_route_idx": 0,
+  "clean_route_idx": null,
+  "avoidance_zone_count": 4,
+  "avoidance_filtered_count": 3,
+  "avoidance_warning": true,
+  "safety_data_available": true,
+  "candidates_evaluated": 17,
+  "note": null
+}
+```
+
+**D.5 `GET /notifications` → 200** (`NotificationListResponse`)
+
+```json
+{
+  "items": [
+    {
+      "id": "9f3a...",
+      "type": "nearby_incident",
+      "title": "⚠️ Nearby Incident: Pothole near Gandhipuram",
+      "message": "A medium incident reported 1.2km from your location.",
+      "is_read": false,
+      "incident_id": "b1c2...",
+      "sos_id": null,
+      "metadata_json": "{\"lat\": 11.0168, \"lng\": 76.9558, \"dist_km\": 1.2}",
+      "dedup_key": "nearby_incident:b1c2...",
+      "created_at": "2026-10-06T09:15:22Z"
+    }
+  ],
+  "total": 1,
+  "unread_count": 1
+}
+```
+
+**D.6 `POST /admin/alerts` (location_based) → 201** (`AlertSchema` + dynamic field)
+
+```json
+{
+  "id": "77ab...",
+  "title": "Gas leak near Ukkadam",
+  "message": "Avoid the junction until further notice.",
+  "alert_type": "emergency_notice",
+  "target_scope": "location_based",
+  "location_lat": 10.9920,
+  "location_lng": 76.9700,
+  "radius_km": 3.0,
+  "is_active": true,
+  "expires_at": "2026-10-07T11:00:00Z",
+  "created_at": "2026-10-06T11:00:00Z",
+  "recipients_count": 14
+}
+```
+
+### Appendix E — Screenshots
+
+**Not implemented / Not verified.** The repository contains no UI screenshots or screen captures (searched for `*.png|*.jpg|*.jpeg` outside dependency folders: only app icons/splash art in `apps/mobile/assets`, web `public/icon.png`/`og-image.jpg`, and demo/uploaded incident photos in `apps/backend/uploads/`). As capturing new screenshots would require running the stack (and possibly adding binary files), this appendix is intentionally left as a placeholder describing the screen inventory instead:
+
+| Surface | Implementation file(s) | Suggested capture |
+|---|---|---|
+| Web dashboard | `DashboardPage.tsx` | `/dashboard` after login |
+| Live safety map + heatmap + score panel | `MapPage.tsx`, `IncidentMap.tsx` | `/map` with heatmap toggle |
+| Route planner with 3–5 labelled routes | `RoutePlanPage.tsx` | `/route-plan` after OD selection |
+| Report incident (severity preview) | `ReportIncidentPage.tsx` | `/incidents/new` while typing |
+| Incident detail + resolution request | `IncidentDetailPage.tsx` | `/incidents/{id}` |
+| Admin moderation queue | `AdminIncidentsPage.tsx` | `/admin/incidents` with action modal |
+| Admin alert composer with radius circle | `AdminAlertsPage.tsx` | `/admin/alerts` in location mode |
+| Mobile home / safe route / active SOS | `HomeScreen.tsx`, `SafeRouteScreen.tsx`, `ActiveSOSScreen.tsx` | Expo dev build |
+
+### Appendix F — Configuration Details
+
+**F.1 Backend environment (`apps/backend/.env.example`)** — `APP_NAME=SafeCity`, `APP_VERSION=1.0.0`, `DEBUG=False`, `DATABASE_URL=postgresql+asyncpg://safecity:safecity_pass@localhost:5432/safecitydb`, `DATABASE_URL_SYNC` (psycopg2 form), `SECRET_KEY`, `ALGORITHM=HS256`, `ACCESS_TOKEN_EXPIRE_MINUTES=60` (code default 30), `REFRESH_TOKEN_EXPIRE_DAYS=7`, `BACKEND_CORS_ORIGINS=[...]`, `UPLOAD_DIR=uploads`, `MAX_UPLOAD_SIZE_MB=10`, SMTP block (`SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME=SafeCity`), `OTP_EXPIRY_MINUTES=10`.
+
+**F.2 Code defaults (`core/config.py`)** — `SECRET_KEY` placeholder (must be overridden in production), `ACCESS_TOKEN_EXPIRE_MINUTES=30`, `OSRM_BASE_URL=http://router.project-osrm.org/route/v1/driving`, `BACKEND_CORS_ORIGINS` includes localhost:5173/3000/80/and two Vercel domains, `SMTP_FROM_EMAIL=noreply@safecity.io`.
+
+**F.3 Root `.env.example`** — adds `VITE_API_BASE_URL`, `VITE_MAP_TILE_URL`, `VITE_DEFAULT_LAT/LNG/ZOOM`, `EXPO_PUBLIC_API_BASE_URL`, `EXPO_PUBLIC_DEFAULT_LAT/LNG`.
+
+**F.4 Web build (`apps/web/vite.config.ts`, `vercel.json`)** — `@` path alias to `src`; build script `tsc && vite build`; Vercel SPA rewrite `/(.*) → /index.html`. Type-check/lint scripts available (`tsc --noEmit`, `eslint`).
+
+**F.5 Mobile (`app.json`, `eas.json`, `config/env.ts`)** — Expo app config with Android permissions implied by plugins; EAS `preview` build (APK, internal distribution) with `EXPO_PUBLIC_API_BASE_URL=https://safecity-k280.onrender.com`; API-base resolution order: env var → LAN fallback `http://10.89.126.243:8000/api/v1`; default coordinates 11.0168/76.9558; timeout 15 000 ms.
+
+**F.6 Docker** — `docker-compose.yml` services `db`/`backend`/`web` with volumes `postgres_data`, `uploads_data`; host port mapping 5433 (DB), 8000 (API), 8080 (web); backend startup command `python -m app.db.init_db && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload`; nginx SPA fallback with gzip.
+
+**F.7 Database bootstrap** — `python -m app.db.init_db` → PostGIS extension → `alembic upgrade head` → `seed_database` (admin + 25 citizens + 130 incidents + notifications + 50+ categories); lifespan `create_tables()` additionally calls `CREATE EXTENSION IF NOT EXISTS postgis` and `Base.metadata.create_all` for development.
+
+---
+
+*End of report.*
+
+
+
+
 
 
 

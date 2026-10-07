@@ -7,6 +7,7 @@ from app.models.incident import Incident, IncidentCategory, SeverityLevel, Incid
 from datetime import datetime, timedelta, timezone
 import logging
 import math
+import time
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -457,6 +458,22 @@ def summarize_exposure(ev: Dict[str, Any], incident_limit: int = MAX_INCIDENTS_I
             "relevant_incident_count": rel, "incident_count_in_radius": total, "risk_index": round(risk, 4)}
 
 
+def area_risk(inside: Sequence[Tuple[IncidentRecord, float]], area_km2: float) -> float:
+    """
+    Area risk for incidents inside a disc. `inside` = (record, u) with u = d/radius in [0, 1].
+    Single source of truth for both the Area Safety Score and the map risk grid, so the
+    colour on the map is the same number the area panel shows.
+    kernel = (1 - 0.5 u^2) / 0.75 : centre-weighted, mean 1 over the disc.
+    """
+    norm = S_AREA * max(area_km2, MIN_AREA_KM2)
+    items = [(r.slug, r.cell, r.hazard_w * ((1.0 - 0.5 * u * u) / 0.75) / norm) for r, u in inside]
+    return aggregate_risk(items)[0]
+
+
+_GRID_CACHE: Dict[Tuple[int, float], Tuple[float, Dict[str, Any]]] = {}
+GRID_CACHE_TTL_S = 120.0
+
+
 class SafetyScoreService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -464,15 +481,18 @@ class SafetyScoreService:
     # ------------------------------------------------------------------
     # Data access: ONE query per request, converted to light records.
     # ------------------------------------------------------------------
-    async def _fetch_records(self, geog, dist_m: float, now: datetime) -> List[IncidentRecord]:
+    async def _fetch_records(self, geog, dist_m: Optional[float], now: datetime) -> List[IncidentRecord]:
+        """Non-rejected incidents within dist_m of geog (geog=None: all incidents)."""
+        conditions = [
+            or_(Incident.status.is_(None), Incident.status != IncidentStatus.REJECTED),
+            Incident.deleted_at.is_(None),
+        ]
+        if geog is not None:
+            conditions.insert(0, func.ST_DWithin(Incident.location_geom, geog, dist_m))
         query = (
             select(Incident)
             .options(joinedload(Incident.category))
-            .where(
-                func.ST_DWithin(Incident.location_geom, geog, dist_m),
-                or_(Incident.status.is_(None), Incident.status != IncidentStatus.REJECTED),
-                Incident.deleted_at.is_(None),
-            )
+            .where(*conditions)
             .order_by(desc(Incident.created_at))
             .limit(MAX_RECORDS)
         )
@@ -554,6 +574,76 @@ class SafetyScoreService:
         return summary
 
     # ------------------------------------------------------------------
+    # Risk grid for the map overlay
+    # ------------------------------------------------------------------
+    async def get_risk_grid(self, cell_m: float = 250.0, radius_km: float = 1.0, max_cells: int = 6000) -> dict:
+        """
+        Area Safety Score sampled on a regular grid covering every incident (+ one radius of margin).
+        Each cell value is exactly what calculate_area_score_detailed returns for the cell centre
+        (same weights, kernel, clustering and category caps). One DB query; incidents are bucketed so
+        each cell only looks at its 3x3 neighbouring buckets. Cached for GRID_CACHE_TTL_S seconds.
+        Returns row-major scores (row 0 = north edge), counts of incidents inside each cell's radius,
+        and image bounds [[south, west], [north, east]].
+        """
+        cell_m = min(2000.0, max(100.0, _num(cell_m, 250.0) or 250.0))
+        radius_km = min(5.0, max(0.25, _num(radius_km, 1.0) or 1.0))
+        key = (int(round(cell_m)), round(radius_km, 2))
+        hit = _GRID_CACHE.get(key)
+        if hit and time.monotonic() - hit[0] < GRID_CACHE_TTL_S:
+            return hit[1]
+
+        empty = {"bounds": None, "rows": 0, "cols": 0, "cell_m": cell_m, "radius_km": radius_km,
+                 "scores": [], "counts": []}
+        records = await self._fetch_records(None, None, datetime.now(timezone.utc))
+        if not records:
+            return empty
+
+        proj = Projection(sum(r.lat for r in records) / len(records), sum(r.lng for r in records) / len(records))
+        project_records(records, proj)
+        radius_m = radius_km * 1000.0
+        x_lo, x_hi = min(r.x for r in records) - radius_m, max(r.x for r in records) + radius_m
+        y_lo, y_hi = min(r.y for r in records) - radius_m, max(r.y for r in records) + radius_m
+        cols, rows = max(1, math.ceil((x_hi - x_lo) / cell_m)), max(1, math.ceil((y_hi - y_lo) / cell_m))
+        if cols * rows > max_cells:                      # coarsen instead of exploding the payload
+            cell_m *= math.sqrt(cols * rows / max_cells)
+            cols, rows = max(1, math.ceil((x_hi - x_lo) / cell_m)), max(1, math.ceil((y_hi - y_lo) / cell_m))
+
+        buckets: Dict[Tuple[int, int], List[IncidentRecord]] = defaultdict(list)
+        for r in records:
+            buckets[(math.floor(r.x / radius_m), math.floor(r.y / radius_m))].append(r)
+
+        area_km2 = math.pi * radius_km ** 2
+        scores: List[int] = []
+        counts: List[int] = []
+        for row in range(rows):
+            y = y_hi - (row + 0.5) * cell_m
+            by = math.floor(y / radius_m)
+            for col in range(cols):
+                x = x_lo + (col + 0.5) * cell_m
+                bx = math.floor(x / radius_m)
+                inside = []
+                for dx in (-1, 0, 1):
+                    for dy in (-1, 0, 1):
+                        for rec in buckets.get((bx + dx, by + dy), ()):
+                            d = math.hypot(rec.x - x, rec.y - y)
+                            if d <= radius_m:
+                                inside.append((rec, d / radius_m))
+                if not inside:
+                    scores.append(100)
+                    counts.append(0)
+                else:
+                    scores.append(int(round(score_from_risk(area_risk(inside, area_km2)))))
+                    counts.append(len(inside))
+
+        y_bottom = y_hi - rows * cell_m
+        south, west = proj.latlng(x_lo, y_bottom)
+        north, east = proj.latlng(x_lo + cols * cell_m, y_hi)
+        result = {"bounds": [[south, west], [north, east]], "rows": rows, "cols": cols, "cell_m": round(cell_m, 1),
+                  "radius_km": radius_km, "scores": scores, "counts": counts}
+        _GRID_CACHE[key] = (time.monotonic(), result)
+        return result
+
+    # ------------------------------------------------------------------
     # Detailed area score
     # ------------------------------------------------------------------
     async def calculate_area_score_detailed(self, lat: float, lng: float, radius_km: float = 1.0) -> dict:
@@ -589,9 +679,7 @@ class SafetyScoreService:
                     "explanation": "No incidents reported in the selection radius "
                                    "(absence of reports is not proof of safety)."}
 
-        norm = S_AREA * max(area_km2, MIN_AREA_KM2)
-        items = [(r.slug, r.cell, r.hazard_w * ((1.0 - 0.5 * u * u) / 0.75) / norm) for r, u in inside]
-        risk, _, per_cat = aggregate_risk(items)
+        risk = area_risk(inside, area_km2)
         score = round(score_from_risk(risk), 1)
 
         cats: Dict[str, Dict[str, Any]] = {}
