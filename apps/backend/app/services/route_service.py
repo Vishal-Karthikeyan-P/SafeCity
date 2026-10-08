@@ -8,33 +8,35 @@ Pipeline
 --------
 1. Incidents for the trip corridor are loaded ONCE (single DB query), validated,
    weighted and projected to local metres (shared model in safety_score_service).
-2. Candidate routes (OSRM only, one shared HTTP client, bounded concurrency,
-   stage deadline):
-     a. direct request with alternatives=true
-     b. direct requests with exclude=motorway / exclude=toll (ignored if unsupported)
-     c. via-waypoint detours (3 fractions x 2 sides x normal/wide offset)
-     d. incident-aware via-points: placed 650 m to either side of the worst
-        route-relevant incident clusters on the shortest / lowest-risk routes
-        (only when no clean route exists yet)
-3. Every candidate is evaluated once (geometry decoded once; distance to every
-   incident via a spatial grid, O(route points + incidents)):
-   distance, ETA, incidents within 500 m, weighted risk, safety score, detour ratio.
-4. Near-identical routes (>= 90 % shared ~50 m road cells) are dropped, keeping the
-   better neutral trade-off.
-5. Selection happens AFTER scoring, on the risk-vs-distance Pareto frontier:
-     cost(lambda) = (1-lambda) * risk + lambda * KAPPA * ln(length / shortest)
-   Route 1 (lambda=0.05): a route staying >= 500 m from every route-relevant
-   incident if one exists within CLEAN_DETOUR_CAP of the shortest length,
-   otherwise the minimum-risk / small-detour route.  Routes 2-5 take
-   lambda = 0.25 / 0.5 / 0.75 / 0.95 on distinct frontier points.  Routes that are
-   tiny variations of an already chosen one (risk and length both within ~3 %) are
-   skipped.  Fewer than 5 distinct routes are returned when that is all there is
-   (never padded; at least 3 when 3 valid candidates exist).
+2. Candidate routes (OSRM only, one shared HTTP client, bounded concurrency, deadlines):
+     wave 1: direct request with alternatives=true, plus exclude=motorway / exclude=toll
+     wave 2: * hazard-bypass via-points: route-relevant incidents are grouped into danger
+               clusters; for the clusters near the direct route a via-point is placed on EACH
+               side of the cluster (perpendicular to the trip axis, 500 m + margin clear of it),
+               plus "all clusters, left" / "all clusters, right" combinations
+             * a few generic perpendicular via-points (diversity when there is no hazard data)
+3. Candidate hygiene (this is what removes the random "offshoots"):
+     * a via-point that OSRM had to snap > MAX_VIA_SNAP_M to reach a road is discarded
+       (it fell in a field / lake / block)
+     * out-and-back spurs (route enters a side street and returns along the same road)
+       are loop-erased from the geometry; length / ETA are recomputed
+4. Every surviving candidate is evaluated once (geometry decoded once, spatial-grid distance
+   to every incident): distance, ETA, incidents within 500 m, weighted risk, safety score,
+   detour ratio, directness.  Near-identical routes (>= 90 % shared ~50 m road cells) are dropped.
+5. Selection (after scoring, never "5 shortest then score"):
+     * Route 1 = the safest candidate (lowest risk; near-ties -> shorter).  Distance does not
+       matter, but spurs are gone and the detour cap (2x shortest) keeps it direct.
+     * the shortest candidate is always included as the other anchor.
+     * remaining slots: farthest-point sampling on the (safety score, length) plane over the
+       Pareto-optimal candidates, so the routes DIFFER in safety (>= ~6 score points or ~6 %
+       length apart).  3 routes minimum when 3 valid candidates exist, 5 maximum.
+   Output is ordered safest -> least safe.
 """
 
 import asyncio
 import logging
 import math
+from collections import defaultdict
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import httpx
@@ -49,12 +51,14 @@ from app.services.safety_score_service import (
     Projection,
     SafetyScoreService,
     _num,
+    _pt_seg_dist,
     clean_points,
     densify,
     evaluate_route_exposure,
     haversine_m,
     project_records,
     risk_level_for,
+    score_from_risk,
     summarize_exposure,
     valid_latlng,
 )
@@ -73,21 +77,28 @@ CELL_M = 50.0
 MAX_ROUTES = 5
 MIN_ROUTES = 3
 
-VIA_FRACTIONS = [0.25, 0.50, 0.75]
 VIA_SIDE_MAGNITUDE = 0.45
 VIA_WIDE_MAGNITUDE = 0.85
 
 AVOIDANCE_RADIUS_M: float = ROUTE_RADIUS_M      # 500 m
-AVOID_VIA_MARGIN_M = 150.0                      # via-points sit AVOIDANCE_RADIUS_M + margin from incident
-MAX_AVOID_JOBS = 10
-CORRIDOR_BASE_M = 6000.0                        # covers wide via detours (<= ~4.5 km) + 500 m window
+AVOID_VIA_MARGIN_M = 150.0                      # bypass via sits AVOIDANCE_RADIUS_M + margin clear of a cluster
+BYPASS_CLUSTERS = 3                             # danger clusters considered per trip
+BYPASS_MAX_RADIUS_M = 1200.0                    # cap on the cluster radius used for the via offset
+BYPASS_CORRIDOR_M = 1500.0                      # clusters farther than this from the direct route are ignored
+MAX_BYPASS_JOBS = 8
+CORRIDOR_BASE_M = 6000.0                        # incident corridor around the trip (covers via detours)
+
+MAX_VIA_SNAP_M = 250.0      # via-point that OSRM snapped farther than this was not on a usable road
+BACKTRACK_TOL_M = 15.0      # two passes within this distance = "same road"
+BACKTRACK_MIN_LOOP_M = 80.0 # ... if separated by at least this much driving (out-and-back of >= 40 m)
 
 MAX_DETOUR_RATIO = 2.0      # candidates longer than this x shortest are dropped (unless needed for MIN_ROUTES)
-CLEAN_DETOUR_CAP = 1.5      # "reasonably short" limit for a fully 500 m-clear Route 1
-KAPPA = 3.0                 # weight of ln(distance ratio) vs risk units in the trade-off cost
-LAMBDAS = (0.05, 0.95, 0.50, 0.25, 0.75)        # selection order; output is sorted by lambda
-DISTINCT_RISK_DELTA = 0.03
-DISTINCT_LOG_LEN_DELTA = 0.03
+CLEAN_DETOUR_CAP = 1.5      # a clean route longer than this x shortest does not suppress the bypass search
+KAPPA = 3.0                 # ln(distance ratio) weight, only used to break ties between near-duplicates
+SAFEST_TIE_RISK = 0.02      # risk differences below this are ties -> prefer the shorter route
+TRADEOFF_SCORE_UNIT = 10.0  # 10 safety-score points  = 1 trade-off unit
+TRADEOFF_LEN_UNIT = 0.10    # 10 % length difference  = 1 trade-off unit
+MIN_TRADEOFF_DIST = 0.6     # routes closer than this to an already chosen one are "the same trade-off"
 
 OSRM_CONCURRENCY = 6
 OSRM_TIMEOUT_S = 8.0
@@ -192,6 +203,92 @@ def _candidate_intersects_avoidance(encoded: str, zones: List[Dict[str, Any]]) -
 # ---------------------------------------------------------------------------
 # RouteService
 # ---------------------------------------------------------------------------
+def strip_backtracks(
+    xy: List[Tuple[float, float]],
+    tol: float = BACKTRACK_TOL_M,
+    min_loop: float = BACKTRACK_MIN_LOOP_M,
+) -> Tuple[List[Tuple[float, float]], float]:
+    """
+    Loop-erase out-and-back spurs from a projected polyline.
+
+    Walks the (densified) path; when a point lands within `tol` of an earlier point that is at
+    least `min_loop` metres back along the path, everything in between is a spur / U-turn / loop
+    and is dropped.  Single pass, O(n) with a spatial hash.  Returns (clean_xy, removed_length_m);
+    the input is returned untouched when nothing was removed.
+    """
+    if len(xy) < 3:
+        return xy, 0.0
+    pts = densify(xy, tol)
+    cell = tol
+    out: List[Tuple[float, float]] = []
+    cum: List[float] = []
+    grid: Dict[Tuple[int, int], List[int]] = defaultdict(list)
+    removed = 0.0
+
+    def key(p: Tuple[float, float]) -> Tuple[int, int]:
+        return math.floor(p[0] / cell), math.floor(p[1] / cell)
+
+    for p in pts:
+        k = key(p)
+        hit: Optional[int] = None
+        if out:
+            here = cum[-1]
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    for j in grid.get((k[0] + dx, k[1] + dy), ()):
+                        if here - cum[j] >= min_loop and math.hypot(p[0] - out[j][0], p[1] - out[j][1]) <= tol:
+                            hit = j if hit is None else min(hit, j)
+        if hit is not None:
+            removed += cum[-1] - cum[hit]
+            for n in range(len(out) - 1, hit, -1):
+                grid[key(out[n])].remove(n)
+            del out[hit + 1:]
+            del cum[hit + 1:]
+            continue                                   # p coincides with out[hit]
+        cum.append(cum[-1] + math.hypot(p[0] - out[-1][0], p[1] - out[-1][1]) if out else 0.0)
+        out.append(p)
+        grid[k].append(len(out) - 1)
+
+    if removed <= 0.0 or len(out) < 2:
+        return xy, 0.0
+    original = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(xy, xy[1:]))
+    return out, max(0.0, original - cum[-1])             # exact: input length minus output length
+
+
+def danger_clusters(records: List[IncidentRecord], cell_m: float = 500.0) -> List[Dict[str, float]]:
+    """
+    Group route-relevant incidents (already projected) into hazard clusters: 500 m grid cells,
+    8-neighbour connected components.  Each cluster = hazard-weighted centroid, radius, total hazard.
+    """
+    cells: Dict[Tuple[int, int], List[IncidentRecord]] = defaultdict(list)
+    for r in records:
+        if r.relevant and r.hazard_w > 0:
+            cells[(math.floor(r.x / cell_m), math.floor(r.y / cell_m))].append(r)
+    seen: Set[Tuple[int, int]] = set()
+    clusters: List[Dict[str, float]] = []
+    for start in cells:
+        if start in seen:
+            continue
+        seen.add(start)
+        stack, members = [start], []
+        while stack:
+            k = stack.pop()
+            members.extend(cells[k])
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    nk = (k[0] + dx, k[1] + dy)
+                    if nk in cells and nk not in seen:
+                        seen.add(nk)
+                        stack.append(nk)
+        w = sum(m.hazard_w for m in members)
+        cx = sum(m.x * m.hazard_w for m in members) / w
+        cy = sum(m.y * m.hazard_w for m in members) / w
+        clusters.append({"x": cx, "y": cy, "hazard": w, "n": float(len(members)),
+                         "radius": max(math.hypot(m.x - cx, m.y - cy) for m in members)})
+    return clusters
+
+
+
 
 
 class RouteService:
@@ -238,7 +335,9 @@ class RouteService:
                 data = resp.json()
                 routes = data.get("routes") if isinstance(data, dict) else None
                 if data.get("code") == "Ok" and isinstance(routes, list) and routes:
-                    return [r for r in routes if isinstance(r, dict)]
+                    # snap distance (m) of every input waypoint: a large value = the point is not on a road
+                    snaps = [w.get("distance") if isinstance(w, dict) else None for w in data.get("waypoints", [])]
+                    return [{**r, "_snap": snaps} for r in routes if isinstance(r, dict)]
             except Exception as exc:
                 log.debug("osrm request failed: %s", exc)
         return []
@@ -273,7 +372,7 @@ class RouteService:
                 if isinstance(geo, str) and geo:
                     out.append({
                         "geometry": geo, "distance": r.get("distance", 0), "duration": r.get("duration", 0),
-                        "label": job[0] if i == 0 else f"{job[0]} alt {i}",
+                        "label": job[0] if i == 0 else f"{job[0]} alt {i}", "snap": r.get("_snap") or [],
                     })
         return out
 
@@ -286,60 +385,79 @@ class RouteService:
         slat: float, slng: float, dlat: float, dlng: float,
         short_trip: bool = False,
     ) -> List[Dict[str, Any]]:
-        """Stage 1-3: direct (alternatives, excludes) and via-waypoint detour routes."""
+        """Wave 1: direct route with OSRM alternatives, plus motorway / toll exclusions."""
         s, d = (slat, slng), (dlat, dlng)
         jobs: List[Tuple[str, List[Tuple[float, float]], bool, Optional[str], int]] = [
             ("Direct", [s, d], True, None, 1),
         ]
         if not short_trip:
             jobs += [("No-Motorway", [s, d], False, "motorway", 0), ("No-Toll", [s, d], False, "toll", 0)]
-            names = {1.0: "N", -1.0: "S"}
-            for mag, prefix in ((VIA_SIDE_MAGNITUDE, ""), (VIA_WIDE_MAGNITUDE, "Wide-")):
-                for fraction in VIA_FRACTIONS:
-                    for side in (1.0, -1.0):
-                        via = _offset_via_point(slat, slng, dlat, dlng, fraction, side, mag)
-                        jobs.append((f"{prefix}{names[side]}{int(fraction * 100)}", [s, via, d], False, None, 0))
         return await self._osrm_batch(client, jobs)
 
-    def _avoidance_jobs(
-        self, refs: List[Dict[str, Any]], proj: Projection, s: Tuple[float, float], d: Tuple[float, float]
+    @staticmethod
+    def _generic_via_jobs(
+        s: Tuple[float, float], d: Tuple[float, float]
+    ) -> List[Tuple[str, List[Tuple[float, float]], bool, Optional[str], int]]:
+        """A few perpendicular via-points for diversity (used even when there is no hazard data)."""
+        jobs = []
+        for fraction, mag, tag in ((0.33, VIA_SIDE_MAGNITUDE, ""), (0.67, VIA_SIDE_MAGNITUDE, ""),
+                                   (0.50, VIA_WIDE_MAGNITUDE, "W")):
+            for side, name in ((1.0, "N"), (-1.0, "S")):
+                via = _offset_via_point(s[0], s[1], d[0], d[1], fraction, side, mag)
+                jobs.append((f"Via-{name}{int(fraction * 100)}{tag}", [s, via, d], False, None, 0))
+        return jobs
+
+    @staticmethod
+    def _nearby_clusters(
+        clusters: List[Dict[str, float]], ref_dense: List[Tuple[float, float]]
+    ) -> List[Dict[str, float]]:
+        """Clusters within BYPASS_CORRIDOR_M of the reference route, most hazardous / closest first."""
+        scored = []
+        for c in clusters:
+            dist = min(_pt_seg_dist(c["x"], c["y"], *ref_dense[i], *ref_dense[i + 1]) for i in range(len(ref_dense) - 1))
+            if dist <= BYPASS_CORRIDOR_M:
+                scored.append((c["hazard"] * math.exp(-dist / 1000.0), c))
+        scored.sort(key=lambda t: -t[0])
+        return [c for _, c in scored[:BYPASS_CLUSTERS]]
+
+    def _bypass_jobs(
+        self, clusters: List[Dict[str, float]], proj: Projection, s: Tuple[float, float], d: Tuple[float, float]
     ) -> List[Tuple[str, List[Tuple[float, float]], bool, Optional[str], int]]:
         """
-        Incident-aware via-points: for the worst route-relevant incident clusters on the
-        reference routes, place a via 650 m to either side of the incident (perpendicular to the
-        route there).  Also one multi-via route using the side each route already lies on.
+        Hazard-bypass via-points.  For each danger cluster near the direct route, one via on EACH side of
+        the trip axis, AVOIDANCE_RADIUS_M + margin clear of the cluster (measured perpendicular to the overall
+        origin->destination axis, so the detour stays a smooth, mostly straight trajectory).  Plus
+        "all clusters on the left" / "all on the right" combinations ordered along the axis.
         """
-        jobs, seen = [], set()
-        offset = AVOIDANCE_RADIUS_M + AVOID_VIA_MARGIN_M
-        for ref in refs:
-            exposed = sorted((t for t in ref["ev"]["exposed"] if t[0].relevant and t[3] > 0), key=lambda t: -t[3])
-            centers: List[Tuple[IncidentRecord, float, int, float]] = []
-            for t in exposed:
-                if all(math.hypot(t[0].x - c[0].x, t[0].y - c[0].y) > 800.0 for c in centers):
-                    centers.append(t)
-                if len(centers) >= 2:
-                    break
-            multi: List[Tuple[int, Tuple[float, float]]] = []
-            for rec, _dist, seg, _e in centers:
-                (x0, y0), (x1, y1) = ref["dense"][seg], ref["dense"][seg + 1]
-                seg_len = math.hypot(x1 - x0, y1 - y0)
-                if seg_len < 1e-6:
+        sx, sy = proj.xy(*s)
+        ex, ey = proj.xy(*d)
+        length = math.hypot(ex - sx, ey - sy)
+        if length < 200.0 or not clusters:
+            return []
+        ax, ay = (ex - sx) / length, (ey - sy) / length
+        nx, ny = -ay, ax
+        per_side: Dict[float, List[Tuple[float, Tuple[float, float]]]] = {1.0: [], -1.0: []}
+        jobs: List[Tuple[str, List[Tuple[float, float]], bool, Optional[str], int]] = []
+        for i, c in enumerate(clusters):
+            if (math.hypot(c["x"] - sx, c["y"] - sy) < AVOIDANCE_RADIUS_M
+                    or math.hypot(c["x"] - ex, c["y"] - ey) < AVOIDANCE_RADIUS_M):
+                continue                                    # origin / destination sits inside the cluster
+            t = (c["x"] - sx) * ax + (c["y"] - sy) * ay     # position along the trip axis
+            if not (0.02 * length <= t <= 0.98 * length):
+                continue
+            lateral = (c["x"] - sx) * nx + (c["y"] - sy) * ny
+            off = min(c["radius"], BYPASS_MAX_RADIUS_M) + AVOIDANCE_RADIUS_M + AVOID_VIA_MARGIN_M
+            for side, name in ((1.0, "L"), (-1.0, "R")):
+                via = tuple(round(v, 6) for v in proj.latlng(
+                    sx + ax * t + nx * (lateral + side * off), sy + ay * t + ny * (lateral + side * off)))
+                if not valid_latlng(*via):
                     continue
-                tx, ty = (x1 - x0) / seg_len, (y1 - y0) / seg_len
-                nx, ny = -ty, tx
-                u = max(0.0, min(1.0, ((rec.x - x0) * tx + (rec.y - y0) * ty) / seg_len))
-                side_now = 1.0 if ((x0 + (x1 - x0) * u - rec.x) * nx + (y0 + (y1 - y0) * u - rec.y) * ny) >= 0 else -1.0
-                for side in (1.0, -1.0):
-                    via = tuple(round(v, 6) for v in proj.latlng(rec.x + nx * side * offset, rec.y + ny * side * offset))
-                    if side == side_now:
-                        multi.append((seg, via))
-                    if via not in seen and valid_latlng(*via):
-                        seen.add(via)
-                        jobs.append((f"Avoid-{len(jobs) + 1}", [s, via, d], False, None, 0))
-            if len(multi) >= 2:
-                vias = [v for _, v in sorted(multi)]
-                jobs.append((f"Avoid-Multi-{len(jobs) + 1}", [s, *vias, d], False, None, 0))
-        return jobs[:MAX_AVOID_JOBS]
+                per_side[side].append((t, via))
+                jobs.append((f"Bypass-{i + 1}{name}", [s, via, d], False, None, 0))
+        for side, name in ((1.0, "L"), (-1.0, "R")):
+            if len(per_side[side]) >= 2:
+                jobs.append((f"Bypass-All-{name}", [s, *[v for _, v in sorted(per_side[side])], d], False, None, 0))
+        return jobs[:MAX_BYPASS_JOBS]
 
     # -----------------------------------------------------------------------
     # Candidate preparation / deduplication / selection
@@ -349,31 +467,50 @@ class RouteService:
     def _prepare_candidate(
         raw: Dict[str, Any], proj: Projection, records: List[IncidentRecord]
     ) -> Optional[Dict[str, Any]]:
-        """Decode once, validate, measure and evaluate a raw OSRM route. None if geometry is unusable."""
+        """
+        Decode once, validate, clean and evaluate a raw OSRM route.  None if the geometry is unusable or a
+        via-point could not be snapped to a road.  Out-and-back spurs are loop-erased (length / ETA recomputed).
+        """
         geo = raw.get("geometry")
         if not isinstance(geo, str) or not geo:
             return None
+        snaps = raw.get("snap") or []
+        if any((d is not None and _num(d, 0.0) > MAX_VIA_SNAP_M) for d in snaps[1:-1]):
+            return None                                     # via fell in a field / lake / block
         try:
             pts = clean_points(polyline_lib.decode(geo))
         except Exception:
             return None
         if len(pts) < 2:
             return None
+        xy = [proj.xy(*p) for p in pts]
+        raw_len = _path_length_m(pts)
+
+        clean_xy, spur_m = strip_backtracks(xy)
+        if spur_m > 0.0:
+            xy = clean_xy
+            pts = [proj.latlng(x, y) for x, y in xy]
+            geo = polyline_lib.encode([(round(la, 6), round(lo, 6)) for la, lo in pts])
+
         calc = _path_length_m(pts)
         osrm_dist = _num(raw.get("distance"), 0.0) or 0.0
-        length = calc if calc > 10 else osrm_dist
+        length = calc if (calc > 10 or spur_m > 0.0) else osrm_dist
         if length <= 0:
             return None
         dur = _num(raw.get("duration"), 0.0) or 0.0
         if dur <= 0:
             dur = length / FALLBACK_SPEED_MPS
-        xy = [proj.xy(*p) for p in pts]
+        elif spur_m > 0.0 and raw_len > 0:
+            dur *= length / raw_len                          # ETA shrinks with the removed spur
+        straight = haversine_m(pts[0][0], pts[0][1], pts[-1][0], pts[-1][1])
         dense = densify(xy, AVOIDANCE_RADIUS_M)
         ev = evaluate_route_exposure(dense, records, AVOIDANCE_RADIUS_M)
         return {
             "label": raw.get("label", "Route"), "geometry": geo, "distance": length, "duration": dur,
             "len_m": length, "dur_s": dur, "dense": dense, "cells": _cells_from_xy(xy), "ev": ev,
             "risk_index": ev["risk_index"], "relevant": ev["relevant_count"],
+            "directness": min(1.0, straight / length) if length > 0 else 1.0,
+            "spur_removed_m": round(spur_m, 1),
         }
 
     @staticmethod
@@ -417,48 +554,48 @@ class RouteService:
         return front
 
     @staticmethod
-    def _distinct(c: Dict[str, Any], chosen: List[Dict[str, Any]]) -> bool:
-        return all(
-            abs(c["risk_index"] - s["risk_index"]) >= DISTINCT_RISK_DELTA
-            or abs(math.log(max(c["len_m"], 1.0) / max(s["len_m"], 1.0))) >= DISTINCT_LOG_LEN_DELTA
-            for s in chosen
-        )
+    def _tradeoff_distance(a: Dict[str, Any], b: Dict[str, Any]) -> float:
+        """Distance on the (safety score, length) plane: 10 score points or 10 % length = 1 unit."""
+        d_score = abs(score_from_risk(a["risk_index"]) - score_from_risk(b["risk_index"])) / TRADEOFF_SCORE_UNIT
+        d_len = abs(math.log(max(a["len_m"], 1.0) / max(b["len_m"], 1.0))) / TRADEOFF_LEN_UNIT
+        return math.hypot(d_score, d_len)
 
     def _select_routes(self, pool: List[Dict[str, Any]], data_ok: bool) -> List[Dict[str, Any]]:
-        """Pick up to MAX_ROUTES routes that represent distinct safety-vs-distance trade-offs."""
-        l_min = min(c["len_m"] for c in pool)
+        """
+        Route 1 = safest candidate (lowest risk, near-ties -> shorter).  The shortest candidate is the other
+        anchor.  Remaining slots go to the Pareto-optimal candidates farthest (in safety score / length) from
+        everything already chosen, so the routes differ in safety.  MIN_ROUTES..MAX_ROUTES, ordered safest first.
+        """
+        min_risk = min(c["risk_index"] for c in pool)
+        safest = min((c for c in pool if c["risk_index"] <= min_risk + SAFEST_TIE_RISK), key=lambda c: c["len_m"])
+        fastest = min(pool, key=lambda c: (c["len_m"], c["risk_index"]))
+        chosen = [safest] + ([fastest] if fastest is not safest else [])
+
+        def gap(c: Dict[str, Any]) -> float:
+            return min(self._tradeoff_distance(c, s) for s in chosen)
+
         front = self._pareto(pool)
-        chosen: List[Tuple[float, Dict[str, Any]]] = []
+        while len(chosen) < MAX_ROUTES:
+            rest = [c for c in front if all(c is not s for s in chosen)]
+            if not rest:
+                break
+            best = max(rest, key=gap)
+            if gap(best) < MIN_TRADEOFF_DIST:
+                break
+            chosen.append(best)
 
-        def taken() -> List[Dict[str, Any]]:
-            return [c for _, c in chosen]
-
-        for lam in LAMBDAS:
-            avail = [c for c in front if all(c is not t for t in taken()) and self._distinct(c, taken())]
-            if not avail:
-                continue
-            pick = None
-            if lam == LAMBDAS[0]:
-                clean = [c for c in avail if c["relevant"] == 0 and c["len_m"] <= CLEAN_DETOUR_CAP * l_min]
-                if clean:
-                    pick = min(clean, key=lambda c: c["len_m"])
-            if pick is None:
-                pick = min(avail, key=lambda c: (self._cost(c, lam, l_min), c["len_m"]))
-            chosen.append((lam, pick))
-
-        # Never return fewer than MIN_ROUTES when that many valid candidates exist.
+        # Never fewer than MIN_ROUTES when that many valid candidates exist (all 5 slots if data is unavailable).
         want = MIN_ROUTES if data_ok else MAX_ROUTES
-        if len(chosen) < want:
-            rest = sorted((c for c in pool if all(c is not t for t in taken())),
-                          key=lambda c: (self._cost(c, 0.5, l_min), c["len_m"]))
-            for strict in (True, False):
-                for c in rest:
-                    if len(chosen) >= want:
-                        break
-                    if all(c is not t for t in taken()) and (not strict or self._distinct(c, taken())):
-                        chosen.append((0.5, c))
-        chosen.sort(key=lambda lc: lc[0])
-        return [c for _, c in chosen]
+        # Padding picks the least-detour / lowest-risk leftovers (never the most exotic route).
+        l_min = min(c["len_m"] for c in pool)
+        rest = [c for c in pool if all(c is not s for s in chosen)]
+        while rest and len(chosen) < want:
+            best = min(rest, key=lambda c: (self._cost(c, 0.5, l_min), c["len_m"]))
+            chosen.append(best)
+            rest = [c for c in rest if c is not best]
+
+        chosen.sort(key=lambda c: (c["risk_index"], c["len_m"]))
+        return chosen
 
     # -----------------------------------------------------------------------
     # Risk factor extraction
@@ -527,10 +664,9 @@ class RouteService:
         proj = Projection((slat + dlat) / 2.0, (slng + dlng) / 2.0)
         project_records(records, proj)
 
-        # ── Candidates from OSRM ──────────────────────────────────────────
+        # ── Candidates from OSRM (two waves) ──────────────────────────────
         timeout = httpx.Timeout(OSRM_TIMEOUT_S)
         async with httpx.AsyncClient(timeout=timeout, limits=httpx.Limits(max_connections=OSRM_CONCURRENCY)) as client:
-            raw = await self._collect_candidates(client, slat, slng, dlat, dlng, short_trip=trip_m < 50.0)
             prepared: List[Dict[str, Any]] = []
             seen_geo: Set[str] = set()
 
@@ -543,20 +679,21 @@ class RouteService:
                     if c:
                         prepared.append(c)
 
-            add(raw)
+            short_trip = trip_m < 50.0
+            add(await self._collect_candidates(client, slat, slng, dlat, dlng, short_trip=short_trip))
             if not prepared:
                 return {"error": "No routes could be obtained from the routing service."}
 
-            # Incident-aware round, only if no reasonably short route is clear of route-relevant incidents.
-            l_short = min(c["len_m"] for c in prepared)
-            has_clean = any(c["relevant"] == 0 and c["len_m"] <= CLEAN_DETOUR_CAP * l_short for c in prepared)
-            if data_ok and not has_clean and any(r.relevant for r in records):
-                shortest = min(prepared, key=lambda c: c["len_m"])
-                safest = min(prepared, key=lambda c: (c["risk_index"], c["len_m"]))
-                refs = [shortest] if safest is shortest else [shortest, safest]
-                jobs = self._avoidance_jobs(refs, proj, s, d)
-                if jobs:
-                    add(await self._osrm_batch(client, jobs))
+            if not short_trip:
+                # Wave 2: hazard-bypass vias (only when no reasonably short route is already clear) + generic vias
+                jobs = self._generic_via_jobs(s, d)
+                l_short = min(c["len_m"] for c in prepared)
+                has_clean = any(c["relevant"] == 0 and c["len_m"] <= CLEAN_DETOUR_CAP * l_short for c in prepared)
+                if data_ok and not has_clean and any(r.relevant for r in records):
+                    ref = min(prepared, key=lambda c: c["len_m"])
+                    near = self._nearby_clusters(danger_clusters(records), ref["dense"])
+                    jobs = self._bypass_jobs(near, proj, s, d) + jobs
+                add(await self._osrm_batch(client, jobs))
 
         # ── Deduplicate, bound detours, select ───────────────────────────
         unique = self._deduplicate(prepared)
@@ -593,6 +730,8 @@ class RouteService:
                 "incident_free": data_ok and relevant == 0,
                 "risk_index": summary["risk_index"],
                 "detour_ratio": round(c["ratio"], 3),
+                "directness": round(c["directness"], 3),
+                "spur_removed_m": c["spur_removed_m"],
                 "explanation": expl,
                 "incidents": summary["incidents"] if data_ok else [],
                 "risk_factors": self._extract_risk_factors(summary["incidents_all"]) if data_ok else [],
@@ -611,20 +750,28 @@ class RouteService:
         recommended_idx = max(range(len(processed)), key=lambda i: (processed[i]["composite_score"], -i))
         clean_idx = next((i for i, r in enumerate(processed) if r["incident_free"]), None)
 
-        # Role-based labels: rank position gives the intent, the two extremes are named by fact.
-        role_names = ["Safest", "Safer", "Balanced", "Shorter", "Shortest"]
+        # Labels: the two anchors are named by fact, the rest by where their safety lies between them.
+        sc_safe = processed[safest_idx]["safety_score"]
+        sc_short = processed[shortest_idx]["safety_score"]
+        span = sc_safe - sc_short
+        seen_labels: Dict[str, int] = {}
         for i, r in enumerate(processed):
             r["route_rank"] = i + 1
-            r["label"] = role_names[min(4, round(i * 4 / max(1, len(processed) - 1)))] if len(processed) > 1 else "Route"
             r["is_safest"] = i == safest_idx
             r["is_shortest"] = i == shortest_idx
-        if data_ok:
-            processed[safest_idx]["label"] = "Safest" if safest_idx != shortest_idx else "Safest & Shortest"
-        if shortest_idx != safest_idx or not data_ok:
-            processed[shortest_idx]["label"] = "Shortest"
-        for i, r in enumerate(processed):
-            if i not in (safest_idx, shortest_idx) and r["label"] in ("Safest", "Shortest"):
-                r["label"] = "Balanced"
+            if not data_ok:
+                label = "Shortest" if i == shortest_idx else f"Route {i + 1}"
+            elif i == safest_idx and i == shortest_idx:
+                label = "Safest & Shortest"
+            elif i == safest_idx:
+                label = "Safest"
+            elif i == shortest_idx:
+                label = "Shortest"
+            else:
+                p = (r["safety_score"] - sc_short) / span if span > 1e-6 else 0.5
+                label = "Safer" if p >= 0.66 else "Balanced" if p >= 0.33 else "Faster"
+            seen_labels[label] = seen_labels.get(label, 0) + 1
+            r["label"] = label if seen_labels[label] == 1 else f"{label} {seen_labels[label]}"
 
         n_relevant = sum(1 for r in records if r.relevant)
         note = None
