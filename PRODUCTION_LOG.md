@@ -311,3 +311,41 @@ To apply category expansions and re-seed 55 realistic Coimbatore incidents:
 cd apps/backend
 python -m app.db.init_db
 ```
+
+---
+
+## 📅 Release Version: 1.3.0 (October 2026)
+
+### 🌟 New Features & Enhancements
+
+1. **Gemini-Powered AI Safety Assistant (FastAPI Backend)**
+   - Integrated Google Gemini API using `google-genai` SDK with an asynchronous `httpx` REST fallback for high availability.
+   - Strictly enforced backend-only secrets handling (`GEMINI_API_KEY` is never exposed to web or mobile clients).
+   - Configurable model (`GEMINI_MODEL=gemini-2.5-flash`), output token limit (`800`), temperature (`0.2`), and timeout (`15.0s`).
+   - Implemented in-memory sliding-window rate limiting (`20 req/min`) and character length limit (`600 chars`).
+
+2. **Strict Safety Guardrails & Anti-Hallucination Engine**
+   - **Zero-Cost Prompt Injection Defense**: Pre-flight regex filters block jailbreak attempts and system prompt disclosures with 0 Gemini API calls.
+   - **Immediate Danger Protocol**: Detects active emergency threats and returns immediate priority instructions to call **112** and trigger SafeCity SOS without conversational delay.
+   - **Zero-Cost Off-Topic Filtering**: Rejects non-safety queries (recipes, sports, code, trivia) with a concise canned scope message.
+   - **Domain Grounding**: Grounds responses exclusively in verified SafeCity features, verified Indian emergency helplines (112, 100, 101, 108, 1091, 1098, 14567, 1930), verified legal statutes (POSH Act 2013, POCSO Act 2012, IT Act 2000, Good Samaritan Law, IPC/BNS in India), and dynamic Learning Hub articles.
+
+3. **Facebook Messenger-Style Web Chat Widget**
+   - Added floating action button at the bottom-right corner with status badge, tooltip, and pulse glow.
+   - Compact Messenger-style popup window with minimize, maximize/full-screen, and close controls.
+   - Session chat history, quick suggestions carousel, typing animations, error banners, and clear-chat control.
+   - Responsive layout designed to never obscure core page controls.
+   - Embedded interactive "Ask SafeCity AI" banner on `/learning` (Learning Hub) with pre-filled question pills.
+
+4. **Dedicated Full-Screen Android Chat Experience**
+   - Added chatbot launcher icon beside the notification bell at the top-right of the Home dashboard.
+   - Created full-screen `ChatScreen` with `SafeScreen` integration conforming to Android status-bar and navigation-bar rules.
+   - Keyboard-aware scrolling and input management.
+   - Direct 1-tap `112` emergency call shortcut in the top header.
+   - Seamless dark/light theme alignment matching citizen preferences.
+
+5. **Quality Assurance & Security Verification**
+   - Passed 8/8 comprehensive pytest unit and integration tests covering relevant queries, off-topic rejection, injection blocking, immediate danger triggers, rate limiting, and secret concealment.
+   - Verified 0 TypeScript compilation errors on both Web and Mobile (`tsc --noEmit`).
+   - Verified zero exposure of `GEMINI_API_KEY` across all client bundles and git-tracked assets.
+

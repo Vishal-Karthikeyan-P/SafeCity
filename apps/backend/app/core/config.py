@@ -84,6 +84,15 @@ class Settings(BaseSettings):
     SMTP_USER: Optional[str] = None
     EMAILS_FROM_EMAIL: str = "noreply@safecity.io"
 
+    # ── Gemini AI & Chatbot ───────────────────────────────────
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MAX_OUTPUT_TOKENS: int = 800
+    GEMINI_TEMPERATURE: float = 0.2
+    GEMINI_TIMEOUT_SECONDS: float = 15.0
+    CHATBOT_RATE_LIMIT_PER_MINUTE: int = 20
+    CHATBOT_MAX_MESSAGE_LENGTH: int = 600
+
     class Config:
         env_file = ".env"
         case_sensitive = True

@@ -6,9 +6,10 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   Search, BookOpen, AlertCircle, Phone, Scale, CheckCircle2, XCircle,
-  X, ChevronLeft, ChevronRight, Filter
+  X, ChevronLeft, ChevronRight, Filter, Sparkles, MessageSquare
 } from 'lucide-react'
 import { useLearningArticles, useLearningCategories, type Article, type LearningCategory } from '@/api/learning'
+import { useChatStore } from '@/store/chatStore'
 import { cn } from '@/lib/utils'
 
 // ── Skeleton ─────────────────────────────────────────────────
@@ -142,10 +143,71 @@ export function LearningHubPage() {
           <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Safety Learning Hub</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">Guides, best practices, emergency procedures, and legal information.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setShowCategories((v) => !v)} className="shrink-0">
-          <Filter className="w-4 h-4 mr-2" />
-          {showCategories ? 'Hide' : 'Show'} Categories
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => useChatStore.getState().openChat()}
+            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm hover:shadow"
+            size="sm"
+          >
+            <Sparkles className="w-4 h-4 mr-1.5 text-amber-300" />
+            Ask SafeCity AI
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowCategories((v) => !v)} className="shrink-0">
+            <Filter className="w-4 h-4 mr-2" />
+            {showCategories ? 'Hide' : 'Show'} Categories
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Interactive Gemini AI Safety Assistant Banner ────────── */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 p-6 text-white shadow-xl border border-indigo-900/40">
+        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-semibold tracking-wide border border-indigo-500/30">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              Gemini AI-Powered Learning Hub Integration
+            </div>
+            <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+              Have Questions About Safety Protocols or Laws?
+            </h2>
+            <p className="text-sm text-slate-300 leading-relaxed">
+              SafeCity AI is grounded directly in verified Learning Hub content, emergency procedures,
+              and Indian legal frameworks (POSH Act, POCSO Act, IT Act). Ask questions in real time.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto flex-shrink-0">
+            <Button
+              onClick={() => useChatStore.getState().openChat()}
+              size="lg"
+              className="bg-white hover:bg-slate-100 text-slate-950 font-semibold shadow-lg hover:shadow-xl transition-all"
+            >
+              <MessageSquare className="w-4 h-4 mr-2 text-indigo-600" />
+              Chat with SafeCity AI
+            </Button>
+          </div>
+        </div>
+
+        {/* Quick Prompt Pills */}
+        <div className="relative z-10 mt-5 pt-4 border-t border-slate-800 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-slate-400 font-medium">Quick Prompts:</span>
+          {[
+            "How does SafeCity Emergency SOS work?",
+            "What to do during a fire outbreak?",
+            "What are my rights under POSH Act 2013?",
+            "What to do if scammed by financial cyber fraud?",
+            "Night travel personal safety tips",
+          ].map((prompt, idx) => (
+            <button
+              key={idx}
+              onClick={() => useChatStore.getState().openChat(prompt)}
+              className="bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 border border-slate-700/60 px-3 py-1 rounded-full transition-colors flex items-center gap-1.5"
+            >
+              <span>👉</span>
+              <span>{prompt}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Category cards */}

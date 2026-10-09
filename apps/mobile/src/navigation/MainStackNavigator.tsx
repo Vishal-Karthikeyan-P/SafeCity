@@ -6,6 +6,7 @@ import { ActiveSOSScreen } from '../screens/sos/ActiveSOSScreen';
 import { EmergencyContactsScreen as LegacyEmergencyContacts } from '../screens/sos/EmergencyContactsScreen';
 import { EmergencyContactsScreen } from '../screens/profile/EmergencyContactsScreen';
 import { MyIncidentsScreen } from '../screens/profile/MyIncidentsScreen';
+import { ChatScreen } from '../screens/chat/ChatScreen';
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
@@ -33,6 +34,12 @@ export const MainStackNavigator: React.FC = () => {
       <Stack.Screen
         name="MyIncidents"
         component={MyIncidentsScreen}
+        options={{ animation: 'slide_from_right' }}
+      />
+      {/* Gemini AI Safety Chatbot screen */}
+      <Stack.Screen
+        name="Chat"
+        component={ChatScreen}
         options={{ animation: 'slide_from_right' }}
       />
     </Stack.Navigator>

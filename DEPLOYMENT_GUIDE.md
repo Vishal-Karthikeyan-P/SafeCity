@@ -361,6 +361,13 @@ Click on the **Environment** tab and add the following keys and values:
 | `SMTP_PORT` | `587` | TLS port |
 | `SMTP_USERNAME` | *(Optional sender email)* | Your email |
 | `SMTP_PASSWORD` | *(Optional app password)* | Gmail App Password (16 chars) |
+| `GEMINI_API_KEY` | `AIzaSy...` | Google AI Studio Gemini API Key (Backend only!) |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Configurable Gemini model identifier |
+| `GEMINI_MAX_OUTPUT_TOKENS` | `800` | Token limit per chat response |
+| `GEMINI_TEMPERATURE` | `0.2` | Low temperature for grounded safety facts |
+| `GEMINI_TIMEOUT_SECONDS` | `15.0` | API call timeout |
+| `CHATBOT_RATE_LIMIT_PER_MINUTE` | `20` | In-memory sliding window rate limit |
+| `CHATBOT_MAX_MESSAGE_LENGTH` | `600` | Max character length per user question |
 
 5. Click **Deploy Web Service**.
 6. Render will download requirements, run `init_db` (which executes PostGIS verification, Alembic migrations, and seeds initial data), and start Uvicorn.
@@ -540,16 +547,16 @@ The SafeCity shield icon (navy background, glowing blue location pin, radar ring
 | File | Location | Purpose |
 |------|----------|---------|
 | `icon.png` | `apps/web/public/icon.png` | Web favicon (PNG fallback) + PWA icon |
-| `favicon.svg` | `apps/web/public/favicon.svg` | Vector favicon (primary — shown in browser tabs) |
+| `favicon.svg` | `apps/web/public/favicon.svg` | Vector favicon (primary ï¿½ shown in browser tabs) |
 | `manifest.json` | `apps/web/public/manifest.json` | PWA web manifest (Add to Home Screen) |
 | `og-image.jpg` | `apps/web/public/og-image.jpg` | Open Graph / Twitter Card social preview |
-| `icon.png` | `apps/mobile/assets/icon.png` | iOS & Android launcher icon (1024×1024) |
+| `icon.png` | `apps/mobile/assets/icon.png` | iOS & Android launcher icon (1024ï¿½1024) |
 | `adaptive-icon.png` | `apps/mobile/assets/adaptive-icon.png` | Android adaptive icon foreground layer |
 | `splash.png` | `apps/mobile/assets/splash.png` | App loading/splash screen |
 
 ---
 
-### 10.1 Web — Vercel Icon Deployment
+### 10.1 Web ï¿½ Vercel Icon Deployment
 
 The icons are served as **static files** from the `public/` folder. Vite copies everything in `public/` to the build output automatically.
 
@@ -564,17 +571,17 @@ https://<your-vercel-domain>/og-image.jpg       ? social share preview
 
 **Verify on Vercel:**
 
-1. Push to `main` — Vercel auto-deploys.
+1. Push to `main` ï¿½ Vercel auto-deploys.
 2. Open your deployed URL in a browser ? check the tab shows the SafeCity shield icon.
 3. Share the URL on WhatsApp / Telegram ? the `og-image.jpg` splash card should appear.
 4. On a mobile browser ? tap the share menu ? **Add to Home Screen** ? the app icon appears on the home screen.
 
 > [!TIP]
-> To get a proper 32×32 `.ico` file for maximum browser compatibility, convert `icon.png` at [favicon.io](https://favicon.io/favicon-converter/) and drop the generated `favicon.ico` into `apps/web/public/`. Then add `<link rel="icon" href="/favicon.ico" sizes="any" />` **above** the SVG link in `index.html`.
+> To get a proper 32ï¿½32 `.ico` file for maximum browser compatibility, convert `icon.png` at [favicon.io](https://favicon.io/favicon-converter/) and drop the generated `favicon.ico` into `apps/web/public/`. Then add `<link rel="icon" href="/favicon.ico" sizes="any" />` **above** the SVG link in `index.html`.
 
 ---
 
-### 10.2 Mobile — EAS Build / Local Build Icon Wiring
+### 10.2 Mobile ï¿½ EAS Build / Local Build Icon Wiring
 
 The icon paths are already set in `apps/mobile/app.json`:
 
@@ -597,7 +604,7 @@ The icon paths are already set in `apps/mobile/app.json`:
 }
 ```
 
-#### Option A — EAS Cloud Build (Recommended)
+#### Option A ï¿½ EAS Cloud Build (Recommended)
 
 EAS Build reads `app.json` and automatically processes icons into all required sizes (mipmap-hdpi, mipmap-xhdpi, etc.) during the cloud build.
 
@@ -616,7 +623,7 @@ eas build --platform android --profile production
 
 The resulting `.apk` / `.aab` will have the SafeCity shield icon on the launcher and in the app drawer.
 
-#### Option B — Local Prebuild + Gradle
+#### Option B ï¿½ Local Prebuild + Gradle
 
 ```bash
 cd apps/mobile
@@ -640,7 +647,7 @@ After prebuild, you can verify the icons were generated:
 ls android/app/src/main/res/mipmap-*
 ```
 
-#### Option C — Expo Go (Development Preview)
+#### Option C ï¿½ Expo Go (Development Preview)
 
 For quick testing without a full build, icon changes are reflected instantly in **Expo Go** when you run:
 
@@ -649,7 +656,7 @@ cd apps/mobile
 npx expo start
 ```
 
-Scan the QR code in Expo Go — the splash screen will show the SafeCity branding.
+Scan the QR code in Expo Go ï¿½ the splash screen will show the SafeCity branding.
 
 ---
 
@@ -659,20 +666,20 @@ To update the icon at any time:
 
 1. Replace the image files in `apps/mobile/assets/` and `apps/web/public/`.
 2. For **web**: push to GitHub ? Vercel redeploys automatically (CDN cache clears in ~1 minute).
-3. For **mobile**: rebuild via EAS or Gradle — icons are baked into the APK/AAB at build time.
+3. For **mobile**: rebuild via EAS or Gradle ï¿½ icons are baked into the APK/AAB at build time.
 
 **Required icon dimensions:**
 
 | Asset | Min Size | Notes |
 |-------|----------|-------|
-| `icon.png` | 1024×1024 px | Used for all mobile sizes + PWA. Must be square. |
-| `adaptive-icon.png` | 1024×1024 px | Android 8+ foreground layer. Safe zone: center 50%. |
-| `splash.png` | 1284×2778 px | Tall aspect for modern phones. Subject centered. |
-| Web favicon SVG | Vector | No size limit — scales perfectly at any resolution. |
-| `og-image.jpg` | 1200×630 px | Facebook/Twitter/WhatsApp link preview card. |
+| `icon.png` | 1024ï¿½1024 px | Used for all mobile sizes + PWA. Must be square. |
+| `adaptive-icon.png` | 1024ï¿½1024 px | Android 8+ foreground layer. Safe zone: center 50%. |
+| `splash.png` | 1284ï¿½2778 px | Tall aspect for modern phones. Subject centered. |
+| Web favicon SVG | Vector | No size limit ï¿½ scales perfectly at any resolution. |
+| `og-image.jpg` | 1200ï¿½630 px | Facebook/Twitter/WhatsApp link preview card. |
 
 > [!IMPORTANT]
-> For the **Android adaptive icon**, keep the shield graphic within the **center 72dp (˜66%)** of the 1024px canvas. Android clips the corners into a circle/rounded-square shape depending on the device launcher.
+> For the **Android adaptive icon**, keep the shield graphic within the **center 72dp (ï¿½66%)** of the 1024px canvas. Android clips the corners into a circle/rounded-square shape depending on the device launcher.
 
 ---
 

@@ -3,12 +3,13 @@ import { useEffect } from 'react'
 import { useCurrentUser } from '@/api/auth'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
+import { SafetyChatWidget } from '@/components/chat/SafetyChatWidget'
 
 export function AppLayout() {
   const { data: user } = useCurrentUser()
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-screen bg-background overflow-hidden relative">
       {/* Sidebar */}
       <Sidebar />
 
@@ -21,6 +22,9 @@ export function AppLayout() {
           </div>
         </main>
       </div>
+
+      {/* Floating Messenger-style AI Safety Chat Widget */}
+      <SafetyChatWidget />
     </div>
   )
 }

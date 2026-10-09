@@ -18,6 +18,7 @@ export type MainStackParamList = {
   EmergencyContacts: undefined;
   SafeCityContacts: undefined;
   MyIncidents: undefined;
+  Chat: undefined;
 };
 
 export type RootStackParamList = {

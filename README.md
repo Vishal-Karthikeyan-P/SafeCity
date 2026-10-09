@@ -13,6 +13,7 @@ SafeCity is a **complete, production-ready smart city safety platform** that emp
 | 📋 **Incident Reporting** | Map-based location selection, multi-image upload, severity grading, anonymous reporting |
 | 🔍 **Global Search** | Cross-entity search across incidents and learning articles |
 | 📚 **Learning Hub** | Categorized safety guides with Do's/Don'ts, emergency steps, helplines, legal info |
+| 🤖 **AI Safety Assistant** | Gemini-powered conversational assistant integrated into Learning Hub on Web & Android with strict anti-hallucination guardrails, verified emergency helplines (112), Indian legal frameworks (POSH, POCSO, IT Act), and instant emergency action guidance |
 | 🚨 **Community Alerts** | Two-mode alert system: City-wide broadcasts & PostGIS location-radius alerts with live map preview |
 | 🆘 **SOS & Emergency** | User-to-user in-app emergency contact network with live GPS alerting, plus offline phonebook fallback |
 | 📊 **Admin Dashboard** | Full analytics (Recharts), moderation tools, user management, content management (Articles & Alerts) |
@@ -377,6 +378,9 @@ npm install @types/react@~18.2.45 --save-dev
 | Safety | `GET /api/v1/safety/area` | Area safety score |
 | Learning | `GET /api/v1/learning/articles` | List articles |
 | Learning | `GET /api/v1/learning/categories` | List categories |
+| Chatbot | `POST /api/v1/chat/message` | Send query to Gemini safety chatbot |
+| Chatbot | `GET /api/v1/chat/suggestions` | Get starter prompts for UI chips |
+| Chatbot | `GET /api/v1/chat/status` | Chatbot health & active configuration |
 | Alerts | `GET /api/v1/alerts` | Active alerts |
 | Notifications | `GET /api/v1/notifications` | User notifications |
 | Routes | `GET /api/v1/routes/plan` | Safe route |
@@ -590,6 +594,69 @@ Before the candidate pool is deduplicated and scored, SafeCity applies an **avoi
 - **External Uptime / Cron Service Configuration**:
   - Render free-tier instances sleep after 15 minutes of inactivity.
   - To prevent sleep mode and cold-start delays during development and live demonstrations, configure an external uptime or cron service (e.g., [UptimeRobot](https://uptimerobot.com), [cron-job.org](https://cron-job.org)) to ping the `/health` endpoint approximately every **10 minutes**.
-- **Availability Disclaimer**:
+- Availability Disclaimer:
   - This keep-alive strategy is strictly for development and demo availability and does not guarantee production-grade uptime or SLA.
+
+---
+
+## 🤖 Gemini AI Safety Assistant Setup & Maintenance
+
+SafeCity features a conversational AI assistant integrated directly into the **Learning Hub** on both the **Web Frontend** and **Android Mobile App**, powered by Google's Gemini API (`google-genai` SDK with async REST fallback).
+
+### Key Safety Principles & Anti-Hallucination Guardrails
+The chatbot is strictly bounded to personal/community safety, emergency procedures, verified legal frameworks, and SafeCity platform features:
+1. **Permitted Scope**:
+   - SafeCity platform usage (Emergency SOS, Live Map, Safe Route Planner, Incident Reporting, Safety Scores).
+   - Emergency procedures & practical first-aid (CPR, bleeding, choking, fire evacuation, natural disasters).
+   - Practical Do's and Don'ts for transit, night travel, rideshare, and home security.
+   - Verified legal protections in the **Republic of India** (POSH Act 2013, POCSO Act 2012, IT Act 2000, Good Samaritan Law, IPC/BNS).
+   - Safety learning content maintained in the Learning Hub database.
+2. **Zero-Cost Pre-Flight Guardrails**:
+   - **Prompt Injection & Jailbreak Defense**: Detects and rejects injection attempts ("ignore previous instructions", "DAN", prompt disclosure) immediately with zero Gemini API calls.
+   - **Immediate Danger Detection**: When an active emergency is detected ("someone is following me right now", "intruder", "being attacked"), the assistant immediately returns high-priority life-saving guidance to dial **112** and press SafeCity SOS without conversational delay.
+   - **Off-Topic Relevance Filtering**: Unrelated queries (coding, trivia, cooking, sports) are rejected with a helpful canned response with zero Gemini API calls.
+3. **Prevention of Hallucinations**:
+   - Never invents statutes, legal sections, or non-existent penalties.
+   - Never invents phone numbers — strictly cites official numbers (112, 100, 101, 108, 1091, 1098, 14567, 1930).
+   - Never claims to dispatch police or emergency units.
+   - Always clearly identifies the jurisdiction: **Republic of India**.
+   - Mandatory disclaimer: *"SafeCity AI is an informational tool and does not replace emergency authorities (112) or legal counsel."*
+
+### Environment Variables
+Configure in `apps/backend/.env`:
+```env
+# Google AI Studio API Key (Backend only - NEVER expose in web/mobile code)
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Configurable Gemini Model (e.g. gemini-2.5-flash, gemini-1.5-flash)
+GEMINI_MODEL=gemini-2.5-flash
+
+# Generation Controls
+GEMINI_MAX_OUTPUT_TOKENS=800
+GEMINI_TEMPERATURE=0.2
+GEMINI_TIMEOUT_SECONDS=15.0
+
+# Rate Limiting & Message Protection
+CHATBOT_RATE_LIMIT_PER_MINUTE=20
+CHATBOT_MAX_MESSAGE_LENGTH=600
+```
+
+### Web Chat Widget Features
+- **Floating Icon**: Fixed at the bottom-right corner with status badge and pulse glow.
+- **Messenger Interface**: Facebook Messenger-style modal with minimize/maximize controls.
+- **Interactive Suggestions**: Quick question chips from the Learning Hub.
+- **Direct Emergency Shortcut**: Direct 1-tap `tel:112` dialing in the header.
+- **Learning Hub Integration**: Direct "Ask SafeCity AI" banner on `/learning` with pre-filled question pills.
+
+### Android Chat Screen Features
+- **Dashboard Icon**: Header icon with AI indicator beside the notification bell on Home.
+- **Dedicated Full-Screen View**: Uses `SafeScreen` with keyboard-aware scrolling.
+- **Theme Support**: Seamlessly matches dark and light mode.
+- **Emergency Action**: Quick 1-tap call to 112 directly from top bar.
+
+### Knowledge-Source Maintenance
+To update or expand verified safety topics:
+1. Update database learning articles using `apps/backend/seed_data.py` or the Admin Learning Hub (`/admin/learning`). The chatbot dynamically searches database articles and incorporates them into prompt context.
+2. Static emergency procedures and legal acts are maintained in `apps/backend/app/services/chatbot_knowledge.py`.
+
 

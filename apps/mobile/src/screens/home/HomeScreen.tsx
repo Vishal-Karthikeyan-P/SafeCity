@@ -167,20 +167,31 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           <Text style={[styles.userName, { color: colors.textPrimary }]}>{user?.full_name || 'Citizen'}</Text>
         </View>
 
-        <TouchableOpacity
-          style={[styles.notificationBtn, { backgroundColor: colors.background, borderColor: colors.border }]}
-          onPress={() => navigation.navigate('Notifications')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="notifications-outline" size={22} color={colors.textPrimary} />
-          {unreadCount > 0 && (
-            <View style={[styles.unreadBadge, { backgroundColor: colors.alert }]}>
-              <Text style={styles.unreadBadgeText}>
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        <View style={styles.topBarActions}>
+          <TouchableOpacity
+            style={[styles.notificationBtn, { backgroundColor: colors.background, borderColor: colors.border }]}
+            onPress={() => rootNavigation.navigate('Chat')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="sparkles" size={19} color={colors.primary} />
+            <View style={[styles.aiDot, { backgroundColor: '#10b981' }]} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.notificationBtn, { backgroundColor: colors.background, borderColor: colors.border }]}
+            onPress={() => navigation.navigate('Notifications')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="notifications-outline" size={22} color={colors.textPrimary} />
+            {unreadCount > 0 && (
+              <View style={[styles.unreadBadge, { backgroundColor: colors.alert }]}>
+                <Text style={styles.unreadBadgeText}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -329,6 +340,19 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     letterSpacing: -0.3,
+  },
+  topBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  aiDot: {
+    position: 'absolute',
+    top: 3,
+    right: 3,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
   notificationBtn: {
     width: 42,
