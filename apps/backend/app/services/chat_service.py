@@ -219,7 +219,10 @@ class ChatService:
             f"=== END OF KNOWLEDGE BASE ===\n\n"
             f"Always ground your response strictly in the knowledge above. "
             f"For legal questions, state jurisdiction: Republic of India. "
-            f"Keep responses structured, concise, and easy to read in an emergency."
+            f"FORMAT: Reply in compact Markdown for a small chat window. Open with one short sentence. "
+            f"Use '###' headings only when there are 2+ sections, '-' bullets, and **bold** for key actions, "
+            f"numbers and helplines. No tables, no horizontal rules (---), no HTML. "
+            f"Keep it under about 200 words unless the user asks for detail."
         )
 
         # Bound history to last 4 turns (2 user, 2 assistant)
@@ -227,7 +230,9 @@ class ChatService:
 
         # Try google-genai SDK first
         try:
+            # pyrefly: ignore [missing-import]
             from google import genai
+            # pyrefly: ignore [missing-import]
             from google.genai import types
 
             client = genai.Client(api_key=api_key)

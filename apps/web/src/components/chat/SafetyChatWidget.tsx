@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { useChatStore } from '@/store/chatStore'
 import { chatApi, useChatSuggestions, useChatStatus, type ChatMessage } from '@/api/chat'
+import { MarkdownMessage } from './MarkdownMessage'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -300,12 +301,12 @@ export function SafetyChatWidget() {
             {/* Bubble */}
             <div
               className={cn(
-                'rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words shadow-sm',
+                'rounded-2xl px-4 py-3 text-sm leading-relaxed break-words shadow-sm',
                 msg.role === 'user'
-                  ? 'bg-primary text-primary-foreground rounded-br-xs'
+                  ? 'whitespace-pre-wrap bg-primary text-primary-foreground rounded-br-xs'
                   : msg.isEmergency
-                  ? 'bg-red-50 dark:bg-red-950/40 border-2 border-red-500 text-red-900 dark:text-red-100 rounded-bl-xs'
-                  : 'bg-card border border-border text-foreground rounded-bl-xs'
+                    ? 'bg-red-50 dark:bg-red-950/40 border-2 border-red-500 text-red-900 dark:text-red-100 rounded-bl-xs'
+                    : 'bg-card border border-border text-foreground rounded-bl-xs'
               )}
             >
               {msg.isEmergency && (
@@ -314,7 +315,7 @@ export function SafetyChatWidget() {
                   Immediate Danger Protocol
                 </div>
               )}
-              {msg.content}
+              {msg.role === 'assistant' ? <MarkdownMessage content={msg.content} /> : msg.content}
             </div>
 
             {/* Suggested actions pills */}

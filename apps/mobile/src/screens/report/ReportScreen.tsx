@@ -247,7 +247,7 @@ export const ReportScreen: React.FC<Props> = ({ navigation }) => {
         [
           {
             text: 'View on Map',
-            onPress: () => navigation.navigate('Map'),
+            onPress: () => navigation.navigate('Explore'),
           },
           {
             text: 'Done',

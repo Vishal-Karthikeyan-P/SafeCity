@@ -1,6 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
@@ -8,7 +9,6 @@ from app.models.user import User
 from app.models.emergency import SOSStatus
 from app.services.emergency_service import EmergencyService
 from app.schemas.emergency import SOSRequestCreate, SOSRequestSchema, SOSLocationUpdate
-from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -69,4 +69,74 @@ async def resolve_sos(
     """Resolve an active SOS request."""
     service = EmergencyService(db)
     return await service.resolve_sos(current_user.id, data.status)
+
+
+@router.get("/{sos_id}/location")
+async def get_sos_sender_location(
+    sos_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Return the SOS **sender's** latest GPS coordinates for authorized recipients.
+
+    Authorization: the caller must be an ACCEPTED emergency contact of the SOS sender.
+    This endpoint is intended for the SOSView screen on the RECIPIENT's device.
+    It NEVER returns the caller's own location — only the sender's stored coordinates.
+
+    Returns 403 if caller is not an accepted contact of the sender.
+    Returns 404 if the SOS session does not exist.
+    """
+    from sqlalchemy import select
+    from app.models.emergency import SOSRequest, ContactRequest, ContactRequestStatus
+
+    # 1. Fetch the SOS request — must exist
+    result = await db.execute(select(SOSRequest).where(SOSRequest.id == sos_id))
+    sos = result.scalar_one_or_none()
+    if sos is None:
+        raise HTTPException(status_code=404, detail="SOS session not found")
+
+    sender_id = sos.user_id
+
+    # 2. The sender can always see their own SOS
+    if sender_id == str(current_user.id):
+        pass  # authorized
+    else:
+        # 3. Caller must be an accepted contact of the sender
+        contact_check = await db.execute(
+            select(ContactRequest).where(
+                ContactRequest.status == ContactRequestStatus.ACCEPTED,
+                # Either direction: sender→caller or caller→sender
+                (
+                    (ContactRequest.requester_id == sender_id) &
+                    (ContactRequest.contact_id == str(current_user.id))
+                ) | (
+                    (ContactRequest.requester_id == str(current_user.id)) &
+                    (ContactRequest.contact_id == sender_id)
+                ),
+            )
+        )
+        if contact_check.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=403,
+                detail="You are not an authorized emergency contact for this SOS session",
+            )
+
+    # 4. Return the SENDER's coordinates only
+    from sqlalchemy import select as sa_select
+    from app.models.user import User as UserModel
+    sender_user = await db.execute(sa_select(UserModel).where(UserModel.id == sender_id))
+    sender = sender_user.scalar_one_or_none()
+
+    return {
+        "sos_id": sos.id,
+        "sender_name": sender.full_name if sender else "Unknown",
+        # ── SENDER coordinates — never substitute with recipient coords ──────
+        "location_lat": sos.location_lat,
+        "location_lng": sos.location_lng,
+        # ─────────────────────────────────────────────────────────────────────
+        "status": sos.status.value if hasattr(sos.status, "value") else str(sos.status),
+        "updated_at": sos.created_at.isoformat(),
+    }
+
 

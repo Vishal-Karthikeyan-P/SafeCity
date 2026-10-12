@@ -1,18 +1,15 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
+import { Platform, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
 import { MainTabParamList } from '../types/navigation';
 import { HomeScreen } from '../screens/home/HomeScreen';
-import { SafeRouteScreen } from '../screens/route/SafeRouteScreen';
-import { MapScreen } from '../screens/map/MapScreen';
+import { ExploreScreen } from '../screens/explore/ExploreScreen';
 import { ReportScreen } from '../screens/report/ReportScreen';
-import { NotificationsScreen } from '../screens/notifications/NotificationsScreen';
+import { SafeRouteScreen } from '../screens/route/SafeRouteScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { useTheme } from '../store/themeStore';
-import { NotificationsApi } from '../api/notifications';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -20,15 +17,6 @@ export const MainTabNavigator: React.FC = () => {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
 
-  // Periodically poll notification unread count for badge
-  const { data: notifData } = useQuery({
-    queryKey: ['notifications-list'],
-    queryFn: NotificationsApi.list,
-    refetchInterval: 15000,
-    staleTime: 10000,
-  });
-
-  const unreadCount = notifData?.unread_count || 0;
   const bottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 24 : 10);
   const barHeight = (Platform.OS === 'ios' ? 56 : 58) + insets.bottom;
 
@@ -63,24 +51,30 @@ export const MainTabNavigator: React.FC = () => {
             case 'Home':
               iconName = focused ? 'home' : 'home-outline';
               break;
-            case 'Routes':
-              iconName = focused ? 'navigate' : 'navigate-outline';
-              break;
-            case 'Map':
+            case 'Explore':
               iconName = focused ? 'map' : 'map-outline';
               break;
             case 'Report':
               iconName = focused ? 'add-circle' : 'add-circle-outline';
-              size = 26;
+              size = 28;
               break;
-            case 'Notifications':
-              iconName = focused ? 'notifications' : 'notifications-outline';
+            case 'SafeRoute':
+              iconName = focused ? 'navigate' : 'navigate-outline';
               break;
             case 'Profile':
               iconName = focused ? 'person' : 'person-outline';
               break;
             default:
               iconName = 'ellipse-outline';
+          }
+
+          // Report tab gets a special elevated pill style
+          if (route.name === 'Report') {
+            return (
+              <View style={[styles.reportTabIcon, { backgroundColor: colors.primary }]}>
+                <Ionicons name={iconName} size={size || 24} color="#ffffff" />
+              </View>
+            );
           }
 
           return <Ionicons name={iconName} size={size || 22} color={color} />;
@@ -93,33 +87,20 @@ export const MainTabNavigator: React.FC = () => {
         options={{ tabBarLabel: 'Home' }}
       />
       <Tab.Screen
-        name="Routes"
-        component={SafeRouteScreen}
-        options={{ tabBarLabel: 'Safe Route' }}
+        name="Explore"
+        component={ExploreScreen}
+        options={{ tabBarLabel: 'Explore' }}
       />
-      <Tab.Screen
-        name="Map"
-        component={MapScreen}
-        options={{ tabBarLabel: 'Map' }}
-      />
+      {/* Report tab — visually elevated with filled icon */}
       <Tab.Screen
         name="Report"
         component={ReportScreen}
         options={{ tabBarLabel: 'Report' }}
       />
       <Tab.Screen
-        name="Notifications"
-        component={NotificationsScreen}
-        options={{
-          tabBarLabel: 'Alerts',
-          tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: colors.alert,
-            color: '#ffffff',
-            fontSize: 10,
-            fontWeight: '700',
-          },
-        }}
+        name="SafeRoute"
+        component={SafeRouteScreen}
+        options={{ tabBarLabel: 'Safe Route' }}
       />
       <Tab.Screen
         name="Profile"
@@ -129,3 +110,19 @@ export const MainTabNavigator: React.FC = () => {
     </Tab.Navigator>
   );
 };
+
+const styles = StyleSheet.create({
+  reportTabIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -10,
+    shadowColor: '#1d7eeb',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+});

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { User } from '../types';
 import { AuthApi, LoginPayload, RegisterPayload } from '../api/auth';
 import { Storage, StorageKeys } from '../utils/storage';
+import { clearPushTokenCache } from '../utils/pushNotifications';
 
 interface AuthState {
   user: User | null;
@@ -90,6 +91,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticating: false,
         error: null,
       });
+      // Clear push token cache so syncPushToken re-registers after login
+      await clearPushTokenCache();
     } catch (err: any) {
       let message = 'Failed to sign in. Please check your credentials.';
       if (err?.response?.data?.detail) {
@@ -119,6 +122,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticating: false,
         error: null,
       });
+      // Clear push token cache so syncPushToken re-registers after register
+      await clearPushTokenCache();
     } catch (err: any) {
       let message = 'Failed to register. Please try again.';
       if (err?.response?.data?.detail) {
@@ -134,6 +139,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     set({ isLoading: true });
     try {
+      // Clear push token sync cache so next login re-registers with backend
+      await clearPushTokenCache();
       await Storage.removeItem(StorageKeys.ACCESS_TOKEN);
       await Storage.removeItem(StorageKeys.REFRESH_TOKEN);
       await Storage.removeItem(StorageKeys.USER_DATA);

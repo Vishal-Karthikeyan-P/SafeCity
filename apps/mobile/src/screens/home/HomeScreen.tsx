@@ -31,9 +31,10 @@ import { DEFAULT_COORDS } from '../../config/env';
 import { SOSRequest } from '../../types';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'Home'>;
+type StackNav = NativeStackNavigationProp<MainStackParamList>;
 
 export const HomeScreen: React.FC<Props> = ({ navigation }) => {
-  const rootNavigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const rootNavigation = useNavigation<StackNav>();
   const { user } = useAuthStore();
   const { activeSOS, checkActiveSOS } = useSOSStore();
   const { colors, isDark } = useTheme();
@@ -179,7 +180,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
           <TouchableOpacity
             style={[styles.notificationBtn, { backgroundColor: colors.background, borderColor: colors.border }]}
-            onPress={() => navigation.navigate('Notifications')}
+            onPress={() => rootNavigation.navigate('Notifications')}
             activeOpacity={0.7}
           >
             <Ionicons name="notifications-outline" size={22} color={colors.textPrimary} />
@@ -235,9 +236,9 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Quick Actions (Safe Route, Report, Map, SOS) */}
         <QuickActions
-          onNavigateRoutes={() => navigation.navigate('Routes')}
+          onNavigateRoutes={() => navigation.navigate('SafeRoute')}
           onNavigateReport={() => navigation.navigate('Report')}
-          onNavigateMap={() => navigation.navigate('Map')}
+          onNavigateMap={() => navigation.navigate('Explore')}
           onTriggerSOS={handleTriggerSOS}
         />
 
@@ -267,7 +268,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           </View>
           <TouchableOpacity
             style={[styles.viewMapLink, { backgroundColor: colors.primaryLight }]}
-            onPress={() => navigation.navigate('Map')}
+            onPress={() => navigation.navigate('Explore')}
           >
             <Text style={[styles.viewMapText, { color: colors.primaryDark }]}>View Map</Text>
           </TouchableOpacity>
