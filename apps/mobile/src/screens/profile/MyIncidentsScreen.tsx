@@ -64,79 +64,82 @@ function timeAgo(iso: string): string {
 
 // ── Incident Card ──────────────────────────────────────────────────────────────
 
-function IncidentItem({ incident }: { incident: Incident }) {
+function IncidentItem({ incident, onPress }: { incident: Incident; onPress: () => void }) {
   const { colors } = useTheme();
   const sev = getSeverityColors(incident.severity, colors);
   const statusLabel = STATUS_LABELS[incident.status] ?? incident.status;
 
   return (
-    <Card style={[styles.itemCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      {/* Header row */}
-      <View style={styles.itemHeader}>
-        <Text style={styles.itemIcon}>{incident.category?.icon || '📋'}</Text>
-        <View style={styles.itemHeaderText}>
-          <Text style={[styles.itemTitle, { color: colors.textPrimary }]} numberOfLines={2}>
-            {incident.title}
-          </Text>
-          <Text style={[styles.itemCategory, { color: colors.textMuted }]} numberOfLines={1}>
-            {incident.category?.name || 'Uncategorized'} · {timeAgo(incident.created_at)}
-          </Text>
-        </View>
-      </View>
-
-      {/* Description */}
-      {incident.description ? (
-        <Text style={[styles.itemDescription, { color: colors.textSecondary }]} numberOfLines={2}>
-          {incident.description}
-        </Text>
-      ) : null}
-
-      {/* Footer row */}
-      <View style={styles.itemFooter}>
-        {/* Severity chip */}
-        <View style={[styles.severityChip, { backgroundColor: sev.bg }]}>
-          <Text style={[styles.severityText, { color: sev.text }]}>
-            {incident.severity.toUpperCase()}
-          </Text>
-        </View>
-
-        {/* Status badge */}
-        <Badge
-          label={statusLabel}
-          variant="status"
-          status={incident.status}
-          style={styles.statusBadge}
-        />
-
-        {/* Image count */}
-        {incident.images && incident.images.length > 0 && (
-          <View style={styles.imageCount}>
-            <Ionicons name="image-outline" size={12} color={colors.textMuted} />
-            <Text style={[styles.imageCountText, { color: colors.textMuted }]}>{incident.images.length}</Text>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.75}>
+      <Card style={[styles.itemCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        {/* Header row */}
+        <View style={styles.itemHeader}>
+          <Text style={styles.itemIcon}>{incident.category?.icon || '📋'}</Text>
+          <View style={styles.itemHeaderText}>
+            <Text style={[styles.itemTitle, { color: colors.textPrimary }]} numberOfLines={2}>
+              {incident.title}
+            </Text>
+            <Text style={[styles.itemCategory, { color: colors.textMuted }]} numberOfLines={1}>
+              {incident.category?.name || 'Uncategorized'} · {timeAgo(incident.created_at)}
+            </Text>
           </View>
-        )}
-      </View>
-
-      {/* Admin note */}
-      {incident.admin_note ? (
-        <View style={[styles.adminNoteBox, { backgroundColor: `${colors.primary}12` }]}>
-          <Ionicons name="alert-circle-outline" size={13} color={colors.primary} />
-          <Text style={[styles.adminNoteText, { color: colors.primary }]} numberOfLines={2}>
-            Admin: {incident.admin_note}
-          </Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
         </View>
-      ) : null}
 
-      {/* Location */}
-      {incident.location_address ? (
-        <View style={styles.locationRow}>
-          <Ionicons name="location-outline" size={12} color={colors.textMuted} />
-          <Text style={[styles.locationText, { color: colors.textMuted }]} numberOfLines={1}>
-            {incident.location_address}
+        {/* Description */}
+        {incident.description ? (
+          <Text style={[styles.itemDescription, { color: colors.textSecondary }]} numberOfLines={2}>
+            {incident.description}
           </Text>
+        ) : null}
+
+        {/* Footer row */}
+        <View style={styles.itemFooter}>
+          {/* Severity chip */}
+          <View style={[styles.severityChip, { backgroundColor: sev.bg }]}>
+            <Text style={[styles.severityText, { color: sev.text }]}>
+              {incident.severity.toUpperCase()}
+            </Text>
+          </View>
+
+          {/* Status badge */}
+          <Badge
+            label={statusLabel}
+            variant="status"
+            status={incident.status}
+            style={styles.statusBadge}
+          />
+
+          {/* Image count */}
+          {incident.images && incident.images.length > 0 && (
+            <View style={styles.imageCount}>
+              <Ionicons name="image-outline" size={12} color={colors.textMuted} />
+              <Text style={[styles.imageCountText, { color: colors.textMuted }]}>{incident.images.length}</Text>
+            </View>
+          )}
         </View>
-      ) : null}
-    </Card>
+
+        {/* Admin note */}
+        {incident.admin_note ? (
+          <View style={[styles.adminNoteBox, { backgroundColor: `${colors.primary}12` }]}>
+            <Ionicons name="alert-circle-outline" size={13} color={colors.primary} />
+            <Text style={[styles.adminNoteText, { color: colors.primary }]} numberOfLines={2}>
+              Admin: {incident.admin_note}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Location */}
+        {incident.location_address ? (
+          <View style={styles.locationRow}>
+            <Ionicons name="location-outline" size={12} color={colors.textMuted} />
+            <Text style={[styles.locationText, { color: colors.textMuted }]} numberOfLines={1}>
+              {incident.location_address}
+            </Text>
+          </View>
+        ) : null}
+      </Card>
+    </TouchableOpacity>
   );
 }
 
@@ -277,7 +280,12 @@ export const MyIncidentsScreen: React.FC = () => {
         <FlatList
           data={incidents}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <IncidentItem incident={item} />}
+          renderItem={({ item }) => (
+            <IncidentItem
+              incident={item}
+              onPress={() => navigation.navigate('IncidentDetails', { incident: item })}
+            />
+          )}
           ListHeaderComponent={incidents.length > 0 ? renderHeader : null}
           ListEmptyComponent={renderEmpty}
           ListFooterComponent={renderFooter}

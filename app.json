@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "f9f245c9-7872-4a2c-b252-6f837a7ccaac"
+      }
+    },
+    "owner": "safecity25mx",
+    "android": {
+      "package": "com.safecity25mx.safecity"
+    }
+  }
+}

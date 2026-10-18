@@ -248,6 +248,49 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           isLoading={isAlertsLoading}
         />
 
+        {/* Learning Hub & Safety Guides Shortcuts */}
+        <View style={[styles.learningCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.learningHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="book-outline" size={20} color={colors.primary} />
+              <Text style={[styles.learningTitle, { color: colors.textPrimary }]}>
+                Safety Guides & Learning
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => rootNavigation.navigate('LearningHub')}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}
+            >
+              <Text style={[styles.viewAllText, { color: colors.primary }]}>View all</Text>
+              <Ionicons name="chevron-forward" size={15} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+          <Text style={[styles.learningSub, { color: colors.textSecondary }]}>
+            Official advice, emergency steps, and national helpline directories.
+          </Text>
+
+          <View style={styles.learningShortcutsGrid}>
+            {[
+              { title: "Women's Safety", icon: '👩‍🦰' },
+              { title: 'Night Travel', icon: '🌙' },
+              { title: 'Helplines', icon: '📞' },
+              { title: 'Legal Rights', icon: '⚖️' },
+            ].map((item) => (
+              <TouchableOpacity
+                key={item.title}
+                style={[styles.learningShortcutItem, { backgroundColor: colors.background, borderColor: colors.border }]}
+                onPress={() => rootNavigation.navigate('LearningHub')}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.learningShortcutIcon}>{item.icon}</Text>
+                <Text style={[styles.learningShortcutTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+                  {item.title}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
         {/* Nearby Incidents Summary Banner */}
         <View
           style={[
@@ -383,6 +426,52 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 32,
+  },
+  learningCard: {
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+    gap: 8,
+  },
+  learningHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  learningTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  viewAllText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  learningSub: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  learningShortcutsGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 6,
+  },
+  learningShortcutItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 4,
+  },
+  learningShortcutIcon: {
+    fontSize: 20,
+  },
+  learningShortcutTitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   nearbyBanner: {
     flexDirection: 'row',

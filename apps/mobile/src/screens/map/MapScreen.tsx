@@ -13,6 +13,8 @@ import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Header } from '../../components/common/Header';
 import { Badge } from '../../components/common/Badge';
 import { Card } from '../../components/common/Card';
@@ -21,6 +23,7 @@ import { SafetyApi } from '../../api/safety';
 import { Colors } from '../../constants/colors';
 import { DEFAULT_COORDS } from '../../config/env';
 import { Incident, SeverityLevel } from '../../types';
+import { MainStackParamList } from '../../types/navigation';
 
 // Helper to calculate distance in km between two coordinates
 function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -38,6 +41,7 @@ function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon
 }
 
 export const MapScreen: React.FC = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
   const [selectedSeverity, setSelectedSeverity] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -300,7 +304,8 @@ export const MapScreen: React.FC = () => {
       if (msg.type === 'SELECT_INCIDENT') {
         const found = incidents.find((i) => i.id === msg.id);
         if (found) {
-          setSelectedIncident(found);
+          // Navigate to dedicated details screen (primary), fallback to modal
+          navigation.navigate('IncidentDetails', { incident: found });
         }
       }
     } catch {
@@ -328,7 +333,7 @@ export const MapScreen: React.FC = () => {
     return (
       <TouchableOpacity
         activeOpacity={0.8}
-        onPress={() => setSelectedIncident(item)}
+        onPress={() => navigation.navigate('IncidentDetails', { incident: item })}
       >
         <Card style={styles.incidentCard}>
           <View style={styles.incidentHeader}>

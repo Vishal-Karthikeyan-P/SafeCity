@@ -9,6 +9,8 @@ import { EmergencyContactsScreen } from '../screens/profile/EmergencyContactsScr
 import { MyIncidentsScreen } from '../screens/profile/MyIncidentsScreen';
 import { ChatScreen } from '../screens/chat/ChatScreen';
 import { NotificationsScreen } from '../screens/notifications/NotificationsScreen';
+import { IncidentDetailsScreen } from '../screens/incidents/IncidentDetailsScreen';
+import { LearningHubScreen } from '../screens/learning/LearningHubScreen';
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
@@ -17,6 +19,13 @@ export const MainStackNavigator: React.FC = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {/* Bottom tabs root */}
       <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+
+      {/* Incident detail — accessible from Explore, Profile → My Reports, push notifications */}
+      <Stack.Screen
+        name="IncidentDetails"
+        component={IncidentDetailsScreen}
+        options={{ animation: 'slide_from_right', gestureEnabled: true }}
+      />
 
       {/* Full-screen SOS for the person who triggered it */}
       <Stack.Screen
@@ -63,6 +72,13 @@ export const MainStackNavigator: React.FC = () => {
       <Stack.Screen
         name="Chat"
         component={ChatScreen}
+        options={{ animation: 'slide_from_right' }}
+      />
+
+      {/* Safety Learning Hub */}
+      <Stack.Screen
+        name="LearningHub"
+        component={LearningHubScreen}
         options={{ animation: 'slide_from_right' }}
       />
     </Stack.Navigator>

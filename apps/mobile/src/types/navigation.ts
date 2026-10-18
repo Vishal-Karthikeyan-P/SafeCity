@@ -27,6 +27,13 @@ export type MainStackParamList = {
     sender_lat: number;
     sender_lng: number;
   };
+  /** Dedicated incident details screen — accessible from Explore and Profile */
+  IncidentDetails: {
+    /** Pass the full incident object when available for instant display */
+    incident?: any;
+    /** Incident ID — used when only the ID is available (e.g. from push notification) */
+    incidentId?: string;
+  };
   /** Phone-book style emergency contacts (legacy) */
   EmergencyContacts: undefined;
   /** In-app SafeCity user emergency contacts */
@@ -34,6 +41,8 @@ export type MainStackParamList = {
   MyIncidents: undefined;
   Chat: undefined;
   Notifications: undefined;
+  /** Safety guidelines, helpline numbers & emergency steps */
+  LearningHub: { categoryId?: string } | undefined;
 };
 
 export type RootStackParamList = {

@@ -175,31 +175,36 @@ export const ProfileScreen: React.FC = () => {
           />
         </Card>
 
-        {/* Theme Settings Card (Dark Mode) */}
+        {/* Theme Settings Card */}
         <Card style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.sectionHeading, { color: colors.textPrimary }]}>Appearance & Theme</Text>
           <View style={styles.themeRow}>
             <View style={styles.themeInfo}>
               <Ionicons
-                name={isDark ? 'moon' : 'sunny'}
+                name={isDark ? 'moon' : theme === 'system' ? 'phone-portrait-outline' : 'sunny'}
                 size={22}
-                color={isDark ? '#f59e0b' : colors.primary}
+                color={isDark ? '#f59e0b' : theme === 'system' ? colors.secondary : colors.primary}
               />
               <View style={{ marginLeft: 12 }}>
                 <Text style={[styles.themeLabel, { color: colors.textPrimary }]}>
-                  {isDark ? 'Dark Mode' : 'Light Mode'}
+                  {theme === 'system' ? 'System Default' : isDark ? 'Dark Mode' : 'Light Mode'}
                 </Text>
                 <Text style={[styles.themeSubLabel, { color: colors.textMuted }]}>
-                  {isDark ? 'Sleek, low-light viewing' : 'High clarity bright theme'}
+                  {theme === 'system'
+                    ? `Follows device — currently ${isDark ? 'dark' : 'light'}`
+                    : isDark ? 'Sleek, low-light viewing' : 'High clarity bright theme'}
                 </Text>
               </View>
             </View>
-            <Switch
-              value={isDark}
-              onValueChange={(val) => setTheme(val ? 'dark' : 'light')}
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={Platform.OS === 'android' ? (isDark ? colors.surface : '#ffffff') : undefined}
-            />
+            {/* Switch only meaningful for explicit light/dark (not system) */}
+            {theme !== 'system' && (
+              <Switch
+                value={isDark}
+                onValueChange={(val) => setTheme(val ? 'dark' : 'light')}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor={Platform.OS === 'android' ? (isDark ? colors.surface : '#ffffff') : undefined}
+              />
+            )}
           </View>
 
           <View style={[styles.themePillsRow, { borderTopColor: colors.borderLight }]}>
@@ -215,6 +220,11 @@ export const ProfileScreen: React.FC = () => {
                   },
                 ]}
               >
+                <Ionicons
+                  name={mode === 'light' ? 'sunny-outline' : mode === 'dark' ? 'moon-outline' : 'phone-portrait-outline'}
+                  size={13}
+                  color={theme === mode ? colors.primaryDark : colors.textSecondary}
+                />
                 <Text
                   style={[
                     styles.themePillText,
@@ -230,6 +240,7 @@ export const ProfileScreen: React.FC = () => {
             ))}
           </View>
         </Card>
+
 
         {/* SafeCity User Emergency Contacts (User-to-User Feature) */}
         <Card style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
