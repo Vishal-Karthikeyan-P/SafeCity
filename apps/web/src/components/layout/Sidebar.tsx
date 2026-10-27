@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, Map, AlertTriangle, Plus, User, Bell, Shield, Settings, BookOpen, BellRing, FileText, Flame, Navigation
+  LayoutDashboard, Map, AlertTriangle, Plus, User, Bell, Shield, Settings, BookOpen, BellRing, FileText, Navigation, X
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -19,37 +19,53 @@ const navItems = [
   { href: '/profile', label: 'Profile', icon: User },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  onClose?: () => void
+}
+
+export function Sidebar({ onClose }: SidebarProps) {
   const { pathname } = useLocation()
   const user = useAuthStore((s) => s.user)
   const { data: notifData } = useNotifications()
   const unread = notifData?.unread_count ?? 0
 
   return (
-    <aside className="w-64 bg-card border-r flex flex-col h-full shrink-0">
-      {/* Brand */}
-      <div className="p-6 border-b">
-        <Link to="/dashboard" className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-600 to-safe-500 flex items-center justify-center shadow-lg shadow-primary/30">
+    <aside className="w-64 bg-card border-r flex flex-col h-full shrink-0 overflow-y-auto">
+      {/* Brand + mobile close button */}
+      <div className="p-5 border-b flex items-center justify-between gap-2">
+        <Link to="/dashboard" className="flex items-center gap-3" onClick={onClose}>
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-600 to-safe-500 flex items-center justify-center shadow-lg shadow-primary/30 shrink-0">
             <Shield className="w-5 h-5 text-white" />
           </div>
-          <div>
+          <div className="min-w-0">
             <span className="text-lg font-bold gradient-text">SafeCity</span>
             <p className="text-xs text-muted-foreground -mt-0.5">Safety Platform</p>
           </div>
         </Link>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="lg:hidden p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            aria-label="Close sidebar"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Nav */}
       <nav className="flex-1 p-4 space-y-1">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href || (href !== '/dashboard' && pathname.startsWith(href) && href !== '/incidents')
+          const isActive =
+            pathname === href ||
+            (href !== '/dashboard' && pathname.startsWith(href) && href !== '/incidents')
           const isNotif = href === '/notifications'
           return (
             <Link
               key={href}
               to={href}
               className={cn('nav-item', isActive && 'nav-item-active')}
+              onClick={onClose}
             >
               <Icon className="w-4 h-4 shrink-0" />
               <span>{label}</span>
@@ -76,6 +92,7 @@ export function Sidebar() {
             <Link
               to="/admin"
               className={cn('nav-item', pathname.startsWith('/admin') && 'nav-item-active')}
+              onClick={onClose}
             >
               <Settings className="w-4 h-4" />
               <span>Admin Panel</span>

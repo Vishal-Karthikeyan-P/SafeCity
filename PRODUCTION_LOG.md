@@ -4,6 +4,42 @@ All platform updates, new features, category expansions, database seeding enhanc
 
 ---
 
+## 📅 Release Version: 1.7.2 (October 2026) — Mobile Navigation Safety, Safety Map Parity & Android APK Logo Fixes 📱🗺️🚗
+
+### 🌟 New Features & Enhancements
+
+1. **Explore → Safety Map Parity & Missing Markers Resolution**
+   - **Full Incident Visibility**: Replaced 25km-capped `/incidents/nearby` query with `IncidentsApi.listFiltered` (`limit: 500`), displaying all eligible incidents consistent with the web application.
+   - **Unverified Marker Differentiation**: Verified markers are styled with severity color badges; unverified markers display grey background (`#6b7280`) with `?` indicator.
+   - **Heatmap Layer Parity**: Aligned parameters with the web version (`radius: 35, blur: 20, minOpacity: 0.4, maxZoom: 18`, dynamic `max`, normalized weights `Math.max(0.5, p.weight || 1)`, and 5-stop gradient `#3b82f6` -> `#22c55e` -> `#eab308` -> `#f97316` -> `#ef4444`).
+   - **Intuitive Area Safety-Score Checking**: Interactive map tap renders a visible red pulsing pin (`📍`) and accurately scaled 1 km radius circle (`radius: 1000m`), synchronized with the `SafetyScoreCard` and dismissal.
+
+2. **Safe Route → Navigation Safety & Automated Emergency Triggers**
+   - **15-Second Continuous Deviation Detection**: Tracks continuous off-route movement against route geometry; after 15 continuous seconds, triggers Web Audio notification chime, haptic vibration, and prominent 20-second countdown acknowledgement dialog.
+   - **Acknowledgement Actions**:
+     - **"I chose to leave the route"**: Immediately cancels the countdown, prompts/triggers safe route recalculation from current GPS position to destination, and updates the monitored corridor, preventing repeated alerts for the previous route.
+     - **"SOS / Need help"**: Immediately cancels the countdown and triggers active emergency SOS workflow.
+   - **Automatic SOS on Countdown Expiry**: If 20 seconds elapse without acknowledgement, automatically triggers emergency SOS, sharing live GPS coordinates with emergency contacts with deduplication protection.
+   - **Destination Arrival Proximity Detection**: Automatic detection when user reaches within 40 meters (`DESTINATION_ARRIVAL_THRESHOLD_METERS = 40`) of destination, terminating tracking, clearing deviation alerts, and displaying a completion state.
+   - **Throttled Live Area Safety Score (≥ 500m movement)**: Live HUD displays current area safety score, updating only after 500m of movement with debouncing, caching, and in-flight request deduplication.
+
+3. **Android APK Logo & Adaptive Icon Assets**
+   - Resolved blank/default icon issue caused by JPEG assets masquerading with `.png` extensions.
+   - Generated true 32-bit RGBA PNG assets (`icon.png`, `adaptive-icon.png`, `splash.png`).
+   - Generated complete Android mipmap densities (`mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`) for `ic_launcher.png`, `ic_launcher_round.png`, and `ic_launcher_foreground.png`.
+   - Configured adaptive icon XML drawables (`ic_launcher.xml` and `ic_launcher_round.xml`) referencing `@color/iconBackground` (`#0f172a`).
+
+### 🔧 Files Changed
+
+| Component | Files Changed |
+|---|---|
+| **Mobile Screens** | `apps/mobile/src/screens/explore/ExploreScreen.tsx`, `apps/mobile/src/screens/route/SafeRouteScreen.tsx` |
+| **Mobile Utilities** | `apps/mobile/src/utils/geo.ts` |
+| **Android Native & App Config** | `apps/mobile/assets/*`, `apps/mobile/android/app/src/main/res/mipmap-*`, `apps/mobile/app.json`, `app.json`, `apps/mobile/eas.json` |
+| **Validation Tests** | `apps/mobile/src/__tests__/mobile_safety_fixes.test.ts` (21 passing unit tests) |
+
+---
+
 ## 📅 Release Version: 1.7.1 (October 2026) — Two-Mode Admin Community Alerts & Web Emergency Contacts 📢📍
 
 ### 🌟 New Features & Enhancements

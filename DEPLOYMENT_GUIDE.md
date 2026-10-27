@@ -617,11 +617,14 @@ npm install -g eas-cli
 # Log in with your Expo account
 eas login
 
-# Build release APK (Android)
-eas build --platform android --profile production
+# Option 1: Build standalone installable APK directly (uses "buildType": "apk" in eas.json)
+eas build -p android --profile preview
+
+# Option 2: Build Google Play Store release bundle (AAB)
+eas build -p android --profile production
 ```
 
-The resulting `.apk` / `.aab` will have the SafeCity shield icon on the launcher and in the app drawer.
+The resulting `.apk` / `.aab` will display the SafeCity shield logo on the launcher and in the app drawer.
 
 #### Option B � Local Prebuild + Gradle
 

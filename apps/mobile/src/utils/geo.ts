@@ -191,3 +191,35 @@ export function formatDuration(seconds: number): string {
   const minutes = totalMinutes % 60;
   return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
 }
+
+/**
+ * Navigation Safety Constants:
+ * - DESTINATION_ARRIVAL_THRESHOLD_METERS: 40m radius triggers automatic arrival completion.
+ * - DEVIATION_ALERT_THRESHOLD_SECONDS: 15s of continuous deviation triggers sound & dialog.
+ * - DEVIATION_COUNTDOWN_SECONDS: 20s countdown before auto-triggering emergency SOS.
+ * - AREA_SCORE_MOVEMENT_THRESHOLD_METERS: 500m of movement required before requesting new area safety score.
+ */
+export const DESTINATION_ARRIVAL_THRESHOLD_METERS = 40;
+export const DEVIATION_ALERT_THRESHOLD_SECONDS = 15;
+export const DEVIATION_COUNTDOWN_SECONDS = 20;
+export const AREA_SCORE_MOVEMENT_THRESHOLD_METERS = 500;
+
+/**
+ * Checks whether user has arrived at the destination within the threshold.
+ */
+export function hasReachedDestination(
+  userPoint: { latitude: number; longitude: number },
+  destPoint: { latitude: number; longitude: number },
+  thresholdMeters: number = DESTINATION_ARRIVAL_THRESHOLD_METERS
+): { hasArrived: boolean; distanceMeters: number } {
+  const dist = haversineMeters(
+    userPoint.latitude,
+    userPoint.longitude,
+    destPoint.latitude,
+    destPoint.longitude
+  );
+  return {
+    hasArrived: dist <= thresholdMeters,
+    distanceMeters: Math.round(dist),
+  };
+}

@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Modal,
+  Vibration,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
@@ -15,9 +17,11 @@ import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { RoutesApi } from '../../api/routes';
+import { SafetyApi } from '../../api/safety';
+import { useSOSStore } from '../../store/sosStore';
 import { Colors } from '../../constants/colors';
 import { DEFAULT_COORDS } from '../../config/env';
-import { RouteData, RoutePlanResponse } from '../../types';
+import { RouteData, RoutePlanResponse, AreaSafetyScore } from '../../types';
 import { useTheme } from '../../store/themeStore';
 import {
   decodePolyline,
@@ -25,6 +29,12 @@ import {
   formatDuration,
   isDeviatedFromRoute,
   OFF_ROUTE_THRESHOLD_METERS,
+  DESTINATION_ARRIVAL_THRESHOLD_METERS,
+  DEVIATION_ALERT_THRESHOLD_SECONDS,
+  DEVIATION_COUNTDOWN_SECONDS,
+  AREA_SCORE_MOVEMENT_THRESHOLD_METERS,
+  hasReachedDestination,
+  haversineMeters,
 } from '../../utils/geo';
 import { RouteSafetyModal } from '../../components/route/RouteSafetyModal';
 import { DestinationSearchModal } from '../../components/route/DestinationSearchModal';
@@ -69,6 +79,30 @@ export const SafeRouteScreen: React.FC = () => {
   const [deviationMeters, setDeviationMeters] = useState(0);
   const [isRecalculating, setIsRecalculating] = useState(false);
   const [recalcNotice, setRecalcNotice] = useState<string | null>(null);
+
+  // ─── 4. Navigation Safety: Deviation Alert & 20s Countdown ──────────────────
+  const [deviationModalVisible, setDeviationModalVisible] = useState(false);
+  const [countdownRemaining, setCountdownRemaining] = useState(DEVIATION_COUNTDOWN_SECONDS);
+  const offRouteSinceRef = useRef<number | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isDeviationModalOpenRef = useRef<boolean>(false);
+  const isTriggeringSOSRef = useRef<boolean>(false);
+  const sosTriggeredRef = useRef<boolean>(false);
+
+  // Destination Arrival state
+  const [hasArrived, setHasArrived] = useState(false);
+
+  // SOS activation feedback
+  const [sosFeedback, setSosFeedback] = useState<{ message: string; isError?: boolean } | null>(null);
+
+  // Throttled Area Safety Score state (≥ 500m movement)
+  const [navAreaScore, setNavAreaScore] = useState<AreaSafetyScore | null>(null);
+  const lastScorePosRef = useRef<{ lat: number; lng: number } | null>(null);
+  const scoreCacheRef = useRef<Map<string, AreaSafetyScore>>(new Map());
+  const inFlightScoreRef = useRef<boolean>(false);
+
+  // SOS store
+  const { triggerSOS } = useSOSStore();
 
   const webViewRef = useRef<WebView>(null);
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
@@ -168,7 +202,224 @@ export const SafeRouteScreen: React.FC = () => {
     }));
   }, [routes]);
 
-  // ─── 5. Live Foreground GPS Tracking ───────────────────────────────────────
+  // ─── 5. Navigation Safety Handlers & Timers ────────────────────────────────
+  const cancelCountdownTimer = useCallback(() => {
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+  }, []);
+
+  // Throttled Area Safety Score (≥ 500m movement with debouncing & deduplication)
+  const updateThrottledAreaScore = useCallback(async (lat: number, lng: number) => {
+    if (lastScorePosRef.current) {
+      const movedMeters = haversineMeters(
+        lastScorePosRef.current.lat,
+        lastScorePosRef.current.lng,
+        lat,
+        lng
+      );
+      if (movedMeters < AREA_SCORE_MOVEMENT_THRESHOLD_METERS) {
+        return;
+      }
+    }
+
+    const cacheKey = `${lat.toFixed(2)},${lng.toFixed(2)}`;
+    if (scoreCacheRef.current.has(cacheKey)) {
+      setNavAreaScore(scoreCacheRef.current.get(cacheKey)!);
+      lastScorePosRef.current = { lat, lng };
+      return;
+    }
+
+    if (inFlightScoreRef.current) return;
+    inFlightScoreRef.current = true;
+
+    try {
+      const score = await SafetyApi.getAreaScore(lat, lng, 1.0);
+      scoreCacheRef.current.set(cacheKey, score);
+      setNavAreaScore(score);
+      lastScorePosRef.current = { lat, lng };
+    } catch {
+      // Background score fetch failure is non-fatal
+    } finally {
+      inFlightScoreRef.current = false;
+    }
+  }, []);
+
+  // Destination Arrival handler (stops navigation, shows completion state)
+  const handleDestinationArrival = useCallback(() => {
+    if (locationSubRef.current) {
+      locationSubRef.current.remove();
+      locationSubRef.current = null;
+    }
+    cancelCountdownTimer();
+    isDeviationModalOpenRef.current = false;
+    setDeviationModalVisible(false);
+    setIsNavigating(false);
+    setIsOffRoute(false);
+    offRouteSinceRef.current = null;
+    setHasArrived(true);
+
+    try {
+      if (Platform.OS !== 'web') {
+        Vibration.vibrate([0, 200, 100, 300]);
+      }
+    } catch {}
+  }, [cancelCountdownTimer]);
+
+  // Automatic SOS Trigger on 20-second countdown expiry
+  const handleCountdownExpired = useCallback(async (currentLat: number, currentLng: number) => {
+    cancelCountdownTimer();
+    isDeviationModalOpenRef.current = false;
+    setDeviationModalVisible(false);
+
+    // Prevent duplicate SOS creation
+    if (useSOSStore.getState().activeSOS || isTriggeringSOSRef.current || sosTriggeredRef.current) {
+      return;
+    }
+
+    isTriggeringSOSRef.current = true;
+    sosTriggeredRef.current = true;
+
+    try {
+      await triggerSOS(currentLat, currentLng);
+      setSosFeedback({
+        message: '🚨 20s countdown expired: Emergency SOS automatically triggered! Live location shared with emergency contacts.',
+        isError: false,
+      });
+      try {
+        if (Platform.OS !== 'web') {
+          Vibration.vibrate([0, 800, 200, 800]);
+        }
+      } catch {}
+    } catch (err: any) {
+      setSosFeedback({
+        message: 'Network error: Failed to trigger SOS automatically. Please check your signal.',
+        isError: true,
+      });
+    } finally {
+      isTriggeringSOSRef.current = false;
+    }
+  }, [cancelCountdownTimer, triggerSOS]);
+
+  // Trigger deviation alert after 15s of continuous off-route
+  const triggerDeviationAlert = useCallback((lat: number, lng: number) => {
+    if (isDeviationModalOpenRef.current || sosTriggeredRef.current) return;
+
+    isDeviationModalOpenRef.current = true;
+    setDeviationModalVisible(true);
+    setCountdownRemaining(DEVIATION_COUNTDOWN_SECONDS);
+
+    // Play notification sound via Leaflet Web Audio oscillator
+    webViewRef.current?.injectJavaScript('if (window.playAlertChime) { window.playAlertChime(); } true;');
+
+    // Haptic notification
+    try {
+      if (Platform.OS !== 'web') {
+        Vibration.vibrate([0, 500, 200, 500]);
+      }
+    } catch {}
+
+    cancelCountdownTimer();
+
+    countdownIntervalRef.current = setInterval(() => {
+      setCountdownRemaining((prev) => {
+        if (prev <= 1) {
+          handleCountdownExpired(lat, lng);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [cancelCountdownTimer, handleCountdownExpired]);
+
+  // User Action 1: "I chose to leave the route"
+  const handleAcknowledgeIntentionalLeave = useCallback(async () => {
+    cancelCountdownTimer();
+    isDeviationModalOpenRef.current = false;
+    setDeviationModalVisible(false);
+    offRouteSinceRef.current = null;
+    setIsOffRoute(false);
+
+    if (userLocation && destLocation) {
+      setIsRecalculating(true);
+      setRecalcNotice('Recalculating safe route from your current location...');
+
+      try {
+        const newStart: LocationPoint = {
+          name: 'Current Location',
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+          isCurrentGps: true,
+        };
+        setStartLocation(newStart);
+
+        const newPlan = await RoutesApi.planSafeRoute(
+          userLocation.latitude,
+          userLocation.longitude,
+          destLocation.latitude,
+          destLocation.longitude
+        );
+
+        if (newPlan.routes.length > 0) {
+          const recIdx = newPlan.recommended_route_idx ?? 0;
+          setSelectedRouteIdx(recIdx);
+          setIsOffRoute(false);
+          setRecalcNotice('New safe route accepted! Now monitoring updated corridor.');
+        } else {
+          setRecalcNotice('No alternatives found. Continuing navigation.');
+        }
+      } catch {
+        setRecalcNotice('Unable to recalculate route. Please check network connection.');
+      } finally {
+        setIsRecalculating(false);
+        setTimeout(() => setRecalcNotice(null), 3500);
+      }
+    }
+  }, [cancelCountdownTimer, userLocation, destLocation]);
+
+  // User Action 2: "SOS / Need help"
+  const handleManualEmergencySOS = useCallback(async () => {
+    cancelCountdownTimer();
+    isDeviationModalOpenRef.current = false;
+    setDeviationModalVisible(false);
+
+    const lat = userLocation?.latitude ?? DEFAULT_COORDS.latitude;
+    const lng = userLocation?.longitude ?? DEFAULT_COORDS.longitude;
+
+    if (useSOSStore.getState().activeSOS || isTriggeringSOSRef.current || sosTriggeredRef.current) {
+      setSosFeedback({
+        message: 'Active emergency SOS is already in progress.',
+        isError: false,
+      });
+      return;
+    }
+
+    isTriggeringSOSRef.current = true;
+    sosTriggeredRef.current = true;
+
+    try {
+      await triggerSOS(lat, lng);
+      setSosFeedback({
+        message: '🚨 Emergency SOS broadcast active! Live GPS location shared with emergency contacts.',
+        isError: false,
+      });
+      try {
+        if (Platform.OS !== 'web') {
+          Vibration.vibrate([0, 800, 200, 800]);
+        }
+      } catch {}
+    } catch {
+      setSosFeedback({
+        message: 'Failed to activate SOS. Please check signal or contact emergency services.',
+        isError: true,
+      });
+    } finally {
+      isTriggeringSOSRef.current = false;
+    }
+  }, [cancelCountdownTimer, userLocation, triggerSOS]);
+
+  // ─── 6. Live Foreground GPS Tracking ───────────────────────────────────────
   const startForegroundTracking = useCallback(async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -180,7 +431,6 @@ export const SafeRouteScreen: React.FC = () => {
       setHasLocationPermission(true);
       setLocationError(null);
 
-      // Clean up any existing subscription
       if (locationSubRef.current) {
         locationSubRef.current.remove();
         locationSubRef.current = null;
@@ -206,7 +456,20 @@ export const SafeRouteScreen: React.FC = () => {
             );
           }
 
-          // ── 6. Route Deviation Check ──────────────────────────────────────
+          // A. Destination Arrival Check (<= 40m threshold)
+          if (destLocation) {
+            const { hasArrived: arrived } = hasReachedDestination(
+              { latitude: lat, longitude: lng },
+              { latitude: destLocation.latitude, longitude: destLocation.longitude },
+              DESTINATION_ARRIVAL_THRESHOLD_METERS
+            );
+            if (arrived) {
+              handleDestinationArrival();
+              return;
+            }
+          }
+
+          // B. Route Deviation Check & Continuous 15s Timing
           if (selectedRouteCoords.length > 1) {
             const deviationResult = isDeviatedFromRoute(
               { latitude: lat, longitude: lng },
@@ -214,9 +477,31 @@ export const SafeRouteScreen: React.FC = () => {
               OFF_ROUTE_THRESHOLD_METERS
             );
 
-            setIsOffRoute(deviationResult.isOffRoute);
+            const off = deviationResult.isOffRoute;
+            setIsOffRoute(off);
             setDeviationMeters(deviationResult.deviationDistanceMeters);
+
+            const now = Date.now();
+            if (off) {
+              if (offRouteSinceRef.current === null) {
+                offRouteSinceRef.current = now;
+              } else {
+                const elapsedSeconds = (now - offRouteSinceRef.current) / 1000;
+                if (
+                  elapsedSeconds >= DEVIATION_ALERT_THRESHOLD_SECONDS &&
+                  !isDeviationModalOpenRef.current &&
+                  !sosTriggeredRef.current
+                ) {
+                  triggerDeviationAlert(lat, lng);
+                }
+              }
+            } else {
+              offRouteSinceRef.current = null;
+            }
           }
+
+          // C. Throttled Area Safety Score check (≥ 500m movement)
+          updateThrottledAreaScore(lat, lng);
         }
       );
 
@@ -224,25 +509,36 @@ export const SafeRouteScreen: React.FC = () => {
     } catch {
       setLocationError('GPS is unavailable or location services are disabled.');
     }
-  }, [selectedRouteCoords]);
+  }, [
+    destLocation,
+    selectedRouteCoords,
+    handleDestinationArrival,
+    triggerDeviationAlert,
+    updateThrottledAreaScore,
+  ]);
 
   const stopForegroundTracking = useCallback(() => {
     if (locationSubRef.current) {
       locationSubRef.current.remove();
       locationSubRef.current = null;
     }
+    cancelCountdownTimer();
+    isDeviationModalOpenRef.current = false;
+    setDeviationModalVisible(false);
     setIsNavigating(false);
     setIsOffRoute(false);
-  }, []);
+    offRouteSinceRef.current = null;
+  }, [cancelCountdownTimer]);
 
-  // Clean up tracking on unmount
+  // Clean up tracking and timers on unmount
   useEffect(() => {
     return () => {
       if (locationSubRef.current) {
         locationSubRef.current.remove();
       }
+      cancelCountdownTimer();
     };
-  }, []);
+  }, [cancelCountdownTimer]);
 
   const handleToggleNavigation = async () => {
     if (!isNavigating) {
@@ -250,7 +546,14 @@ export const SafeRouteScreen: React.FC = () => {
         Alert.alert('Route Required', 'Please calculate and select a route before starting navigation.');
         return;
       }
+      setHasArrived(false);
+      sosTriggeredRef.current = false;
+      offRouteSinceRef.current = null;
+      setSosFeedback(null);
       setIsNavigating(true);
+
+      // Fetch initial area safety score
+      updateThrottledAreaScore(startLocation.latitude, startLocation.longitude);
       await startForegroundTracking();
     } else {
       stopForegroundTracking();
@@ -268,7 +571,6 @@ export const SafeRouteScreen: React.FC = () => {
     setRecalcNotice('Recalculating safe route from current GPS position...');
 
     try {
-      // Set start location to latest GPS position
       const newStart: LocationPoint = {
         name: 'Current Location',
         latitude: userLocation.latitude,
@@ -277,9 +579,9 @@ export const SafeRouteScreen: React.FC = () => {
       };
       setStartLocation(newStart);
 
-      // Trigger re-fetch
       await refetchRoutes();
       setIsOffRoute(false);
+      offRouteSinceRef.current = null;
       setRecalcNotice('Route updated successfully!');
       setTimeout(() => setRecalcNotice(null), 3000);
     } catch {
@@ -491,6 +793,25 @@ export const SafeRouteScreen: React.FC = () => {
       map.flyTo([lat, lng], 16, { animate: true, duration: 1.0 });
     };
 
+    window.playAlertChime = function() {
+      try {
+        var AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        var ctx = new AudioContext();
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.4);
+        gain.gain.setValueAtTime(0.5, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.4);
+      } catch (e) {}
+    };
+
     // Render Routes
     var routes = ${routesJson};
     var selectedIdx = ${selectedRouteIdx};
@@ -681,6 +1002,75 @@ export const SafeRouteScreen: React.FC = () => {
             <Ionicons name="locate" size={20} color={Colors.primary} />
           </TouchableOpacity>
         </View>
+
+        {/* Live Area Safety Score HUD during navigation (throttled ≥ 500m) */}
+        {isNavigating && navAreaScore && (
+          <View style={[styles.areaScoreHud, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Ionicons
+              name="shield-checkmark"
+              size={15}
+              color={
+                navAreaScore.risk_level === 'safe'
+                  ? '#16a34a'
+                  : navAreaScore.risk_level === 'moderate'
+                  ? '#d97706'
+                  : '#dc2626'
+              }
+            />
+            <Text style={[styles.areaScoreHudText, { color: colors.textPrimary }]}>
+              Area: <Text style={{ fontWeight: '800' }}>{Math.round(navAreaScore.score)}</Text>/100
+            </Text>
+            <View
+              style={[
+                styles.areaScoreBadge,
+                {
+                  backgroundColor:
+                    (navAreaScore.risk_level === 'safe'
+                      ? '#16a34a'
+                      : navAreaScore.risk_level === 'moderate'
+                      ? '#d97706'
+                      : '#dc2626') + '22',
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.areaScoreBadgeText,
+                  {
+                    color:
+                      navAreaScore.risk_level === 'safe'
+                        ? '#16a34a'
+                        : navAreaScore.risk_level === 'moderate'
+                        ? '#d97706'
+                        : '#dc2626',
+                  },
+                ]}
+              >
+                {navAreaScore.risk_level.toUpperCase()}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* SOS Emergency Feedback Banner */}
+        {sosFeedback && (
+          <View
+            style={[
+              styles.sosFeedbackBanner,
+              sosFeedback.isError ? styles.sosBannerError : styles.sosBannerSuccess,
+            ]}
+          >
+            <Ionicons
+              name={sosFeedback.isError ? 'alert-circle' : 'shield-checkmark'}
+              size={18}
+              color="#ffffff"
+            />
+            <Text style={styles.sosFeedbackText}>{sosFeedback.message}</Text>
+            <TouchableOpacity onPress={() => setSosFeedback(null)}>
+              <Ionicons name="close" size={16} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Off-Route Alert Banner */}
         {isNavigating && isOffRoute && (
@@ -970,6 +1360,93 @@ export const SafeRouteScreen: React.FC = () => {
         onClose={() => setSafetyModalVisible(false)}
         avoidanceWarning={routeResponse?.avoidance_warning}
       />
+
+      {/* ── 11. Prominent Deviation Alert Modal with 20s Countdown ───────────── */}
+      <Modal
+        visible={deviationModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.devModalContent, { backgroundColor: colors.surface }]}>
+            <View style={styles.devIconWrap}>
+              <Ionicons name="warning" size={38} color="#dc2626" />
+            </View>
+
+            <Text style={[styles.devModalTitle, { color: colors.textPrimary }]}>
+              ROUTE DEVIATION DETECTED
+            </Text>
+
+            <Text style={[styles.devModalSub, { color: colors.textSecondary }]}>
+              You have been continuously off the safe corridor for 15+ seconds ({deviationMeters} m deviation).
+            </Text>
+
+            {/* Countdown Dial Box */}
+            <View style={styles.countdownBox}>
+              <Text style={styles.countdownVal}>{countdownRemaining}</Text>
+              <Text style={styles.countdownLbl}>seconds until automatic emergency SOS</Text>
+            </View>
+
+            <Text style={[styles.devActionPrompt, { color: colors.textMuted }]}>
+              Please acknowledge your status immediately:
+            </Text>
+
+            {/* Actions: "I chose to leave the route" & "SOS / Need help" */}
+            <View style={styles.devActions}>
+              <TouchableOpacity
+                style={[styles.leaveBtn, { backgroundColor: colors.primary }]}
+                onPress={handleAcknowledgeIntentionalLeave}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="compass-outline" size={18} color="#ffffff" />
+                <Text style={styles.leaveBtnText}>I chose to leave the route</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.sosAlertBtn}
+                onPress={handleManualEmergencySOS}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="alert-circle" size={18} color="#ffffff" />
+                <Text style={styles.sosAlertBtnText}>SOS / Need help</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── 12. Destination Arrival Completion Modal ─────────────────────────── */}
+      <Modal
+        visible={hasArrived}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setHasArrived(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.arrivalCard, { backgroundColor: colors.surface }]}>
+            <View style={styles.arrivalIconWrap}>
+              <Ionicons name="checkmark-circle" size={54} color="#16a34a" />
+            </View>
+            <Text style={[styles.arrivalTitle, { color: colors.textPrimary }]}>
+              You Have Arrived!
+            </Text>
+            <Text style={[styles.arrivalSub, { color: colors.textSecondary }]}>
+              Destination reached safely within the route corridor. Live navigation tracking and deviation monitoring have stopped.
+            </Text>
+            <TouchableOpacity
+              style={[styles.arrivalDoneBtn, { backgroundColor: '#16a34a' }]}
+              onPress={() => {
+                setHasArrived(false);
+                setDestLocation(null);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.arrivalDoneBtnText}>Complete Trip</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -1425,6 +1902,224 @@ const styles = StyleSheet.create({
   navBtnText: {
     fontSize: 13,
     fontWeight: '700',
+    color: '#ffffff',
+  },
+
+  // ── Area Safety Score HUD (Throttled ≥ 500m) ──
+  areaScoreHud: {
+    position: 'absolute',
+    top: 14,
+    left: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 5,
+  },
+  areaScoreHudText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  areaScoreBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  areaScoreBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+  },
+
+  // ── SOS Emergency Feedback Banner ──
+  sosFeedbackBanner: {
+    position: 'absolute',
+    top: 60,
+    left: 14,
+    right: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 6,
+    zIndex: 10,
+  },
+  sosBannerSuccess: {
+    backgroundColor: '#15803d',
+  },
+  sosBannerError: {
+    backgroundColor: '#b91c1c',
+  },
+  sosFeedbackText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+
+  // ── Modal Backdrop & Dialogs ──
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  devModalContent: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#ef4444',
+    padding: 22,
+    alignItems: 'center',
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  devIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#fee2e2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  devModalTitle: {
+    fontSize: 17,
+    fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  devModalSub: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  countdownBox: {
+    width: '100%',
+    backgroundColor: '#fef2f2',
+    borderWidth: 1.5,
+    borderColor: '#fca5a5',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  countdownVal: {
+    fontSize: 44,
+    fontWeight: '900',
+    color: '#dc2626',
+    letterSpacing: -1,
+  },
+  countdownLbl: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#b91c1c',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  devActionPrompt: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  devActions: {
+    width: '100%',
+    gap: 10,
+  },
+  leaveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 13,
+    borderRadius: 12,
+    gap: 8,
+  },
+  leaveBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  sosAlertBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#dc2626',
+    paddingVertical: 13,
+    borderRadius: 12,
+    gap: 8,
+  },
+  sosAlertBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+
+  // ── Arrival Completion Modal ──
+  arrivalCard: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#16a34a',
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#16a34a',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  arrivalIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#dcfce7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  arrivalTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    marginBottom: 8,
+  },
+  arrivalSub: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+  arrivalDoneBtn: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 13,
+    borderRadius: 12,
+  },
+  arrivalDoneBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
     color: '#ffffff',
   },
 });

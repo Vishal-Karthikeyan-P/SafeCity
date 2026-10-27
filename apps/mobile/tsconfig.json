@@ -10,5 +10,9 @@
   "include": [
     "**/*.ts",
     "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "src/__tests__"
   ]
 }

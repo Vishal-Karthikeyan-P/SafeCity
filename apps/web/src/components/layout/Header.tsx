@@ -1,5 +1,5 @@
-import { Sun, Moon, LogOut, Search } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { Sun, Moon, LogOut, Search, Menu } from 'lucide-react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useLogout } from '@/api/auth'
@@ -9,7 +9,11 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useGlobalSearch } from '@/api/search'
 import { useDebounce } from '@/hooks/useDebounce'
 
-export function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void
+}
+
+export function Header({ onMenuClick }: HeaderProps) {
   const logout = useLogout()
   const user = useAuthStore((s) => s.user)
   const setFilter = useFilterStore((s) => s.setFilter)
@@ -18,6 +22,7 @@ export function Header() {
   const debouncedSearch = useDebounce(searchVal, 300)
   const { data: searchResults, isLoading: isSearching } = useGlobalSearch(debouncedSearch)
   const [showResults, setShowResults] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
 
   const navigate = useNavigate()
 
@@ -36,25 +41,44 @@ export function Header() {
     e.preventDefault()
     setFilter('search', searchVal || null)
     navigate('/incidents')
+    setSearchOpen(false)
   }
 
   return (
-    <header className="h-16 border-b bg-card/80 backdrop-blur-sm px-6 flex items-center gap-4 shrink-0 sticky top-0 z-10">
-      {/* Search */}
-      <form onSubmit={handleSearch} className="flex-1 max-w-md relative z-50">
-        <div className="relative">
+    <header className="h-14 sm:h-16 border-b bg-card/80 backdrop-blur-sm px-3 sm:px-6 flex items-center gap-2 sm:gap-4 shrink-0 sticky top-0 z-10">
+      {/* Hamburger – visible on < lg */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={onMenuClick}
+        aria-label="Open menu"
+        className="lg:hidden shrink-0"
+        id="sidebar-menu-toggle"
+      >
+        <Menu className="h-5 w-5" />
+      </Button>
+
+      {/* Search – full bar on sm+, toggle on xs */}
+      <form
+        onSubmit={handleSearch}
+        className={[
+          'relative z-50 transition-all duration-200',
+          searchOpen ? 'flex-1' : 'hidden sm:flex flex-1 max-w-md',
+        ].join(' ')}
+      >
+        <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             id="header-search"
-            placeholder="Search globally (incidents, articles)..."
-            className="pl-9 h-9"
+            placeholder="Search incidents, articles..."
+            className="pl-9 h-9 w-full"
             value={searchVal}
             onChange={(e) => {
               setSearchVal(e.target.value)
               setShowResults(true)
             }}
             onFocus={() => setShowResults(true)}
-            onBlur={() => setTimeout(() => setShowResults(false), 200)}
+            onBlur={() => setTimeout(() => { setShowResults(false); setSearchOpen(false) }, 200)}
             autoComplete="off"
           />
         </div>
@@ -86,7 +110,19 @@ export function Header() {
         )}
       </form>
 
-      <div className="flex items-center gap-2 ml-auto">
+      <div className="flex items-center gap-1 ml-auto">
+        {/* Search icon toggle – visible on xs only */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setSearchOpen((v) => !v)}
+          aria-label="Search"
+          className="sm:hidden"
+          id="search-toggle-btn"
+        >
+          <Search className="h-4 w-4" />
+        </Button>
+
         {/* Dark mode toggle */}
         <Button
           variant="ghost"

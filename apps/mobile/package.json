@@ -6,7 +6,9 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test": "node --experimental-strip-types --test src/__tests__/mobile_safety_fixes.test.ts",
+    "type-check": "node ../../node_modules/typescript/bin/tsc --noEmit --skipLibCheck"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.0",

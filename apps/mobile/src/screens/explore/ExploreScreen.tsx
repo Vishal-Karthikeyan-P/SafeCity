@@ -28,6 +28,7 @@ import {
   Modal,
   Pressable,
   Animated,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
@@ -95,28 +96,38 @@ const SafetyScoreCard: React.FC<SafetyScoreCardProps> = ({ score, isLoading, lat
   if (!score && !isLoading) return null;
 
   const riskColor = score?.risk_level === 'safe' ? '#22c55e' : score?.risk_level === 'moderate' ? '#f59e0b' : '#ef4444';
+  const riskLabel = score?.risk_level === 'safe' ? 'Safe Area' : score?.risk_level === 'moderate' ? 'Moderate Risk' : 'High Risk';
 
   return (
     <View style={[ssStyles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={ssStyles.header}>
-        <Text style={[ssStyles.title, { color: colors.textPrimary }]}>Area Safety</Text>
-        <TouchableOpacity onPress={onClose}><Ionicons name="close" size={18} color={colors.textMuted} /></TouchableOpacity>
+        <View style={ssStyles.titleCol}>
+          <Text style={[ssStyles.title, { color: colors.textPrimary }]}>Area Safety (1 km radius)</Text>
+          <Text style={[ssStyles.coords, { color: colors.textMuted }]}>{lat.toFixed(4)}, {lng.toFixed(4)}</Text>
+        </View>
+        <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="close" size={20} color={colors.textMuted} />
+        </TouchableOpacity>
       </View>
       {isLoading ? (
-        <ActivityIndicator size="small" color={colors.primary} />
+        <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 12 }} />
       ) : score ? (
         <>
           <View style={ssStyles.scoreRow}>
             <Text style={[ssStyles.scoreNum, { color: riskColor }]}>{Math.round(score.score)}</Text>
             <Text style={[ssStyles.scoreLabel, { color: colors.textMuted }]}>/100</Text>
             <View style={[ssStyles.riskBadge, { backgroundColor: riskColor + '22' }]}>
-              <Text style={[ssStyles.riskText, { color: riskColor }]}>{score.risk_level.toUpperCase()}</Text>
+              <Text style={[ssStyles.riskText, { color: riskColor }]}>{riskLabel.toUpperCase()}</Text>
             </View>
           </View>
           <View style={ssStyles.statsRow}>
             <View style={ssStyles.stat}>
               <Text style={[ssStyles.statVal, { color: colors.textPrimary }]}>{score.incident_count}</Text>
-              <Text style={[ssStyles.statLbl, { color: colors.textMuted }]}>Total</Text>
+              <Text style={[ssStyles.statLbl, { color: colors.textMuted }]}>Within 1 km</Text>
+            </View>
+            <View style={ssStyles.stat}>
+              <Text style={[ssStyles.statVal, { color: colors.textPrimary }]}>{score.density_per_km2 ?? (score.incident_count / 3.14).toFixed(1)}</Text>
+              <Text style={[ssStyles.statLbl, { color: colors.textMuted }]}>Density/km²</Text>
             </View>
             <View style={ssStyles.stat}>
               <Text style={[ssStyles.statVal, { color: colors.textPrimary }]}>{score.recent_7d}</Text>
@@ -127,7 +138,7 @@ const SafetyScoreCard: React.FC<SafetyScoreCardProps> = ({ score, isLoading, lat
               <Text style={[ssStyles.statLbl, { color: colors.textMuted }]}>Last 30d</Text>
             </View>
           </View>
-          {score.top_categories.length > 0 && (
+          {score.top_categories.length > 0 ? (
             <View style={ssStyles.topCats}>
               {score.top_categories.slice(0, 3).map((c) => (
                 <View key={c.name} style={[ssStyles.topCat, { backgroundColor: colors.background }]}>
@@ -137,6 +148,8 @@ const SafetyScoreCard: React.FC<SafetyScoreCardProps> = ({ score, isLoading, lat
                 </View>
               ))}
             </View>
+          ) : (
+            <Text style={[ssStyles.clearMsg, { color: '#22c55e' }]}>✓ No incidents reported in this 1 km area</Text>
           )}
         </>
       ) : null}
@@ -147,20 +160,23 @@ const SafetyScoreCard: React.FC<SafetyScoreCardProps> = ({ score, isLoading, lat
 const ssStyles = StyleSheet.create({
   card: { position: 'absolute', bottom: 80, left: 12, right: 12, borderRadius: 16, borderWidth: 1, padding: 14, zIndex: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 10, elevation: 8 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  titleCol: { gap: 2 },
   title: { fontSize: 14, fontWeight: '700' },
+  coords: { fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
   scoreRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginBottom: 10 },
   scoreNum: { fontSize: 36, fontWeight: '900' },
   scoreLabel: { fontSize: 16, fontWeight: '600' },
   riskBadge: { marginLeft: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   riskText: { fontSize: 11, fontWeight: '800' },
-  statsRow: { flexDirection: 'row', gap: 12, marginBottom: 10 },
+  statsRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   stat: { flex: 1, alignItems: 'center' },
-  statVal: { fontSize: 18, fontWeight: '800' },
+  statVal: { fontSize: 16, fontWeight: '800' },
   statLbl: { fontSize: 10, fontWeight: '600' },
   topCats: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   topCat: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, gap: 4 },
   topCatName: { fontSize: 11, fontWeight: '600' },
   topCatCount: { fontSize: 10 },
+  clearMsg: { fontSize: 12, fontWeight: '600', marginTop: 2 },
 });
 
 // ─── Filter Drawer ─────────────────────────────────────────────────────────────
@@ -404,9 +420,9 @@ export const ExploreScreen: React.FC = () => {
   // Categories
   const { data: categories = [] } = useQuery({ queryKey: ['incident-categories'], queryFn: IncidentsApi.getCategories });
 
-  // Nearby incidents — with filter params
+  // Incidents — query backend listFiltered with limit 500, matching web app
   const {
-    data: rawIncidents = [],
+    data: rawIncidentsData,
     isLoading,
     isError,
     refetch,
@@ -414,27 +430,39 @@ export const ExploreScreen: React.FC = () => {
   } = useQuery({
     queryKey: [
       'explore-incidents',
-      userCoords.latitude,
-      userCoords.longitude,
       filters.severity,
       filters.categoryId,
       filters.showUnverified,
+      filters.dateFrom,
+      filters.dateTo,
+      searchText,
     ],
-    queryFn: () =>
-      IncidentsApi.getNearby(
-        userCoords.latitude,
-        userCoords.longitude,
-        25.0,
-        filters.categoryId,
-        filters.severity,
-        filters.showUnverified,
-      ),
+    queryFn: async () => {
+      const res = await IncidentsApi.listFiltered({
+        limit: 500,
+        status: filters.showUnverified ? undefined : 'approved',
+        severity: filters.severity ?? undefined,
+        category_id: filters.categoryId ?? undefined,
+        date_from: filters.dateFrom || undefined,
+        date_to: filters.dateTo || undefined,
+        search: searchText.trim() || undefined,
+      });
+      return res.items || [];
+    },
   });
 
-  // Heatmap data (only fetched when toggled on)
+  const rawIncidents = rawIncidentsData ?? [];
+
+  // Heatmap data (only fetched when toggled on, matching web filters)
   const { data: heatmapData = [] } = useQuery<HeatmapPoint[]>({
-    queryKey: ['heatmap', filters.categoryId, filters.severity],
-    queryFn: () => IncidentsApi.getHeatmap({ category_id: filters.categoryId ?? undefined, severity: filters.severity ?? undefined }),
+    queryKey: ['heatmap', filters.categoryId, filters.severity, filters.dateFrom, filters.dateTo],
+    queryFn: () =>
+      IncidentsApi.getHeatmap({
+        category_id: filters.categoryId ?? undefined,
+        severity: filters.severity ?? undefined,
+        date_from: filters.dateFrom || undefined,
+        date_to: filters.dateTo || undefined,
+      }),
     enabled: showHeatmap,
   });
 
@@ -446,21 +474,18 @@ export const ExploreScreen: React.FC = () => {
     staleTime: 60_000,
   });
 
-  // Client-side search filter
+  // Filtered incidents: respect unverified toggle
   const incidents = useMemo(() => {
-    if (!searchText.trim()) return rawIncidents;
-    const q = searchText.toLowerCase();
-    return rawIncidents.filter(
-      (i) =>
-        i.title.toLowerCase().includes(q) ||
-        i.description.toLowerCase().includes(q) ||
-        i.category?.name?.toLowerCase().includes(q) ||
-        i.location_address?.toLowerCase().includes(q)
-    );
-  }, [rawIncidents, searchText]);
+    return rawIncidents.filter((inc) => {
+      if (!filters.showUnverified && inc.status !== 'approved' && inc.status !== 'resolved') {
+        return false;
+      }
+      return true;
+    });
+  }, [rawIncidents, filters.showUnverified]);
 
   // Active filter count for badge
-  const activeFilterCount = [filters.severity, filters.categoryId, filters.showUnverified].filter(Boolean).length;
+  const activeFilterCount = [filters.severity, filters.categoryId, filters.showUnverified, filters.dateFrom, filters.dateTo].filter(Boolean).length;
 
   // Build Leaflet HTML
   const leafletHtml = useMemo(() => {
@@ -479,7 +504,12 @@ export const ExploreScreen: React.FC = () => {
       verified: inc.status === 'approved' || inc.status === 'resolved',
     }));
 
-    const heatPoints = showHeatmap ? heatmapData.map((p) => [p.lat, p.lng, p.weight]) : [];
+    // Heatmap points with normalized weights matching web
+    const heatPoints = showHeatmap ? heatmapData.map((p) => [p.lat, p.lng, Math.max(0.5, p.weight || 1)]) : [];
+    const heatMax = heatPoints.length > 0 ? heatPoints.reduce((m, p) => Math.max(m, p[2]), 1) : 1;
+
+    const selLat = locationScoreCoords ? locationScoreCoords.lat : null;
+    const selLng = locationScoreCoords ? locationScoreCoords.lng : null;
 
     return `<!DOCTYPE html>
 <html>
@@ -494,9 +524,12 @@ export const ExploreScreen: React.FC = () => {
     .user-marker{width:16px;height:16px;background:#3b82f6;border:3px solid #fff;border-radius:50%;box-shadow:0 0 10px rgba(59,130,246,.8);}
     .user-pulse{position:absolute;top:-8px;left:-8px;width:32px;height:32px;border-radius:50%;background:rgba(59,130,246,.3);animation:pulse 2s infinite ease-out;}
     @keyframes pulse{0%{transform:scale(.5);opacity:1}100%{transform:scale(1.6);opacity:0}}
+    @keyframes ping{0%{transform:scale(1);opacity:.8}75%,100%{transform:scale(2.2);opacity:0}}
     .pin{width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;cursor:pointer;}
     .pin-icon{transform:rotate(45deg);font-size:13px;display:inline-block;}
-    .pin-unverified{opacity:.55;border-style:dashed;}
+    .unverified-wrap{position:relative;width:28px;height:34px;}
+    .pin-unverified{background:#6b7280!important;border:2px dashed #e2e8f0;opacity:0.9;}
+    .unverified-badge{position:absolute;top:-4px;right:-4px;width:14px;height:14px;background:#1f2937;border:1.5px solid #fff;border-radius:50%;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;z-index:10;}
     .leaflet-control-zoom a{background:#fff!important;color:#0f172a!important;border:none!important;width:32px!important;height:32px!important;line-height:32px!important;}
   </style>
 </head>
@@ -506,7 +539,7 @@ export const ExploreScreen: React.FC = () => {
   var map = L.map('map',{zoomControl:true,attributionControl:false}).setView([${lat0},${lng0}],14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
-  // User location
+  // User location marker
   var uIcon=L.divIcon({className:'',html:'<div class="user-pulse"></div><div class="user-marker"></div>',iconSize:[16,16],iconAnchor:[8,8]});
   L.marker([${lat0},${lng0}],{icon:uIcon,zIndexOffset:1000}).addTo(map);
 
@@ -515,12 +548,21 @@ export const ExploreScreen: React.FC = () => {
 
   var markersData=${JSON.stringify(markers)};
   markersData.forEach(function(inc){
-    var col=sevColors[inc.sev]||'#6b7280';
-    var cls='pin'+(inc.verified?'':' pin-unverified');
-    var html='<div class="'+cls+'" style="background:'+col+'"><span class="pin-icon">'+inc.icon+'</span></div>';
+    var col=inc.verified ? (sevColors[inc.sev]||'#6b7280') : '#6b7280';
+    var pinClass='pin' + (inc.verified ? '' : ' pin-unverified');
+    var html='';
+    if (inc.verified) {
+      html = '<div class="'+pinClass+'" style="background:'+col+'"><span class="pin-icon">'+inc.icon+'</span></div>';
+    } else {
+      html = '<div class="unverified-wrap">' +
+             '<div class="'+pinClass+'" style="background:'+col+'"><span class="pin-icon" style="filter:grayscale(100%);">'+inc.icon+'</span></div>' +
+             '<div class="unverified-badge">?</div>' +
+             '</div>';
+    }
     var ico=L.divIcon({className:'',html:html,iconSize:[28,34],iconAnchor:[14,34]});
     var m=L.marker([inc.lat,inc.lng],{icon:ico});
-    m.on('click',function(){
+    m.on('click',function(e){
+      L.DomEvent.stopPropagation(e);
       if(window.ReactNativeWebView){
         window.ReactNativeWebView.postMessage(JSON.stringify({type:'SELECT_INCIDENT',id:inc.id}));
       }
@@ -528,25 +570,70 @@ export const ExploreScreen: React.FC = () => {
     mLayer.addLayer(m);
   });
 
-  // Heatmap
+  // Heatmap layer — matching web parameters, intensity, and 5-stop gradient
   ${showHeatmap && heatPoints.length > 0 ? `
   var heatData=${JSON.stringify(heatPoints)};
-  L.heatLayer(heatData,{radius:25,blur:15,maxZoom:17,gradient:{0.4:'#22c55e',0.65:'#f59e0b',1:'#ef4444'}}).addTo(map);
+  L.heatLayer(heatData, {
+    radius: 35,
+    blur: 20,
+    minOpacity: 0.4,
+    maxZoom: 18,
+    max: ${heatMax},
+    gradient: { 0.2: '#3b82f6', 0.4: '#22c55e', 0.6: '#eab308', 0.8: '#f97316', 1.0: '#ef4444' }
+  }).addTo(map);
   ` : ''}
 
-  // Tap on map → request safety score for that location
+  // Selected Area pin & 1 km radius circle
+  var selectedPin = null;
+  var selectedCircle = null;
+
+  function renderSelectedArea(lat, lng) {
+    if (selectedPin) { map.removeLayer(selectedPin); selectedPin = null; }
+    if (selectedCircle) { map.removeLayer(selectedCircle); selectedCircle = null; }
+    if (lat == null || lng == null) return;
+
+    var pinHtml = '<div style="position:relative;width:32px;height:32px;">' +
+      '<div style="position:absolute;width:100%;height:100%;border-radius:50%;background:#ef4444;opacity:0.4;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>' +
+      '<div style="position:relative;width:32px;height:32px;border-radius:50%;background:#ef4444;border:3px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;">📍</div>' +
+      '</div>';
+    var pIco = L.divIcon({ className: '', html: pinHtml, iconSize: [32, 32], iconAnchor: [16, 32] });
+    selectedPin = L.marker([lat, lng], { icon: pIco, zIndexOffset: 2000 }).addTo(map);
+
+    selectedCircle = L.circle([lat, lng], {
+      radius: 1000,
+      color: '#1d4ed8',
+      weight: 2,
+      opacity: 0.85,
+      dashArray: '8 6',
+      fillColor: '#3b82f6',
+      fillOpacity: 0.08,
+      interactive: false
+    }).addTo(map);
+  }
+
+  ${selLat !== null && selLng !== null ? `renderSelectedArea(${selLat}, ${selLng});` : ''}
+
+  window.setSelectedArea = function(lat, lng) {
+    renderSelectedArea(lat, lng);
+  };
+
+  window.clearSelectedArea = function() {
+    renderSelectedArea(null, null);
+  };
+
+  // Tap on map → request safety score for that location & render pin/radius
   map.on('click',function(e){
+    renderSelectedArea(e.latlng.lat, e.latlng.lng);
     if(window.ReactNativeWebView){
       window.ReactNativeWebView.postMessage(JSON.stringify({type:'MAP_TAP',lat:e.latlng.lat,lng:e.latlng.lng}));
     }
   });
 
   window.centerOnUser=function(lat,lng){map.flyTo([lat,lng],15,{animate:true,duration:1.0});};
-  window.setShowHeatmap=function(on){};
 </script>
 </body>
 </html>`;
-  }, [userCoords, incidents, showHeatmap, heatmapData]);
+  }, [userCoords, incidents, showHeatmap, heatmapData, locationScoreCoords]);
 
   // WebView message handler
   const handleMessage = useCallback((evt: any) => {
@@ -560,6 +647,11 @@ export const ExploreScreen: React.FC = () => {
       }
     } catch {}
   }, [incidents, navigation]);
+
+  const handleCloseScoreCard = useCallback(() => {
+    setLocationScoreCoords(null);
+    webViewRef.current?.injectJavaScript('if(window.clearSelectedArea){window.clearSelectedArea();}true;');
+  }, []);
 
   const centerOnUser = useCallback(() => {
     webViewRef.current?.injectJavaScript(
@@ -677,14 +769,22 @@ export const ExploreScreen: React.FC = () => {
       {/* ── Legend ─────────────────────────────────────────────────────────────── */}
       {showLegend && showHeatmap && (
         <View style={[styles.legend, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.legendGradient} />
-          <View style={styles.legendLabels}>
-            <Text style={[styles.legendLabel, { color: colors.textMuted }]}>Low</Text>
-            <Text style={[styles.legendLabel, { color: colors.textMuted }]}>Medium</Text>
-            <Text style={[styles.legendLabel, { color: colors.textMuted }]}>High</Text>
+          <View style={styles.legendBarWrap}>
+            <View style={styles.legendGradientBar}>
+              <View style={[styles.gradStop, { backgroundColor: '#3b82f6' }]} />
+              <View style={[styles.gradStop, { backgroundColor: '#22c55e' }]} />
+              <View style={[styles.gradStop, { backgroundColor: '#eab308' }]} />
+              <View style={[styles.gradStop, { backgroundColor: '#f97316' }]} />
+              <View style={[styles.gradStop, { backgroundColor: '#ef4444' }]} />
+            </View>
+            <View style={styles.legendLabels}>
+              <Text style={[styles.legendLabel, { color: colors.textMuted }]}>Low</Text>
+              <Text style={[styles.legendLabel, { color: colors.textMuted }]}>Moderate</Text>
+              <Text style={[styles.legendLabel, { color: colors.textMuted }]}>High Risk</Text>
+            </View>
           </View>
           <TouchableOpacity onPress={() => setShowLegend(false)} style={styles.legendClose}>
-            <Ionicons name="close" size={14} color={colors.textMuted} />
+            <Ionicons name="close" size={16} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
       )}
@@ -727,7 +827,7 @@ export const ExploreScreen: React.FC = () => {
               isLoading={isScoreLoading}
               lat={locationScoreCoords.lat}
               lng={locationScoreCoords.lng}
-              onClose={() => setLocationScoreCoords(null)}
+              onClose={handleCloseScoreCard}
             />
           )}
 
@@ -736,7 +836,7 @@ export const ExploreScreen: React.FC = () => {
             <View style={styles.mapStripLeft}>
               <View style={styles.pulseGreen} />
               <Text style={[styles.mapStripText, { color: colors.textSecondary }]}>
-                {incidents.length} incident{incidents.length !== 1 ? 's' : ''} in 25km
+                {incidents.length} active incident{incidents.length !== 1 ? 's' : ''}
                 {filters.showUnverified ? ' (incl. unverified)' : ''}
               </Text>
             </View>
@@ -839,8 +939,10 @@ const styles = StyleSheet.create({
   heatmapText: { fontSize: 11, fontWeight: '700' },
 
   legend: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, gap: 10 },
-  legendGradient: { flex: 1, height: 8, borderRadius: 4, backgroundColor: '#22c55e' }, // simplified
-  legendLabels: { flexDirection: 'row', justifyContent: 'space-between', flex: 1 },
+  legendBarWrap: { flex: 1, gap: 4 },
+  legendGradientBar: { flexDirection: 'row', height: 8, borderRadius: 4, overflow: 'hidden' },
+  gradStop: { flex: 1, height: '100%' },
+  legendLabels: { flexDirection: 'row', justifyContent: 'space-between' },
   legendLabel: { fontSize: 10, fontWeight: '600' },
   legendClose: { padding: 4 },
 

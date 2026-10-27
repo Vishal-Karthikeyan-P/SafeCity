@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import {
   MessageSquare,
   X,
@@ -42,6 +42,14 @@ export function SafetyChatWidget() {
   const [isLoading, setIsLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
+  // Auto-grow textarea to match content (max ~6 lines)
+  const growTextarea = useCallback(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 144) + 'px'
+  }, [])
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -66,12 +74,16 @@ export function SafetyChatWidget() {
     }
   }, [prefilledPrompt, setPrefilledPrompt])
 
-  const handleSend = async (textToSend?: string) => {
+  const handleSend = useCallback(async (textToSend?: string) => {
     const query = (textToSend || input).trim()
     if (!query || isLoading) return
 
     setErrorMsg(null)
     setInput('')
+    // Reset textarea height after clearing
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto'
+    }
 
     const userMsg: ChatMessage = {
       id: `user_${Date.now()}`,
@@ -110,13 +122,18 @@ export function SafetyChatWidget() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [input, isLoading, messages, addMessage])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
     }
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value.slice(0, 600))
+    growTextarea()
   }
 
   // ── Render 1: Floating Closed Trigger Button ─────────────────────────────
@@ -289,24 +306,24 @@ export function SafetyChatWidget() {
       </div>
 
       {/* ── Message Thread ─────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-muted/20">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 bg-muted/20">
         {messages.map((msg, idx) => (
           <div
             key={msg.id || idx}
             className={cn(
-              'flex flex-col max-w-[88%] sm:max-w-[82%]',
+              'flex flex-col max-w-[90%] sm:max-w-[84%]',
               msg.role === 'user' ? 'ml-auto items-end' : 'mr-auto items-start'
             )}
           >
             {/* Bubble */}
             <div
               className={cn(
-                'rounded-2xl px-4 py-3 text-sm leading-relaxed break-words shadow-sm',
+                'rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed break-words shadow-sm overflow-hidden',
                 msg.role === 'user'
-                  ? 'whitespace-pre-wrap bg-primary text-primary-foreground rounded-br-xs'
+                  ? 'whitespace-pre-wrap bg-primary text-primary-foreground rounded-br-sm'
                   : msg.isEmergency
-                    ? 'bg-red-50 dark:bg-red-950/40 border-2 border-red-500 text-red-900 dark:text-red-100 rounded-bl-xs'
-                    : 'bg-card border border-border text-foreground rounded-bl-xs'
+                    ? 'bg-red-50 dark:bg-red-950/40 border-2 border-red-500 text-red-900 dark:text-red-100 rounded-bl-sm'
+                    : 'bg-card border border-border text-foreground rounded-bl-sm'
               )}
             >
               {msg.isEmergency && (
@@ -413,12 +430,13 @@ export function SafetyChatWidget() {
             <textarea
               ref={inputRef}
               value={input}
-              onChange={(e) => setInput(e.target.value.slice(0, 600))}
+              onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about SafeCity features, SOS, safety laws, or first aid..."
+              placeholder="Ask about SafeCity, SOS, safety laws, first aid..."
               rows={1}
               maxLength={600}
-              className="w-full resize-none bg-transparent p-2.5 text-sm focus:outline-none max-h-24 min-h-[42px] leading-relaxed"
+              className="w-full resize-none bg-transparent px-3 py-2.5 text-sm focus:outline-none leading-relaxed"
+              style={{ minHeight: '42px', maxHeight: '144px' }}
               disabled={isLoading}
               id="safecity-chat-input"
             />
