@@ -361,13 +361,19 @@ Click on the **Environment** tab and add the following keys and values:
 | `SMTP_PORT` | `587` | TLS port |
 | `SMTP_USERNAME` | *(Optional sender email)* | Your email |
 | `SMTP_PASSWORD` | *(Optional app password)* | Gmail App Password (16 chars) |
-| `GEMINI_API_KEY` | `AIzaSy...` | Google AI Studio Gemini API Key (Backend only!) |
-| `GEMINI_MODEL` | `gemini-2.5-flash` | Configurable Gemini model identifier |
+| `GEMINI_API_KEY` | `AIzaSy...` | Google AI Studio Gemini API Key for chatbot (Backend only!) |
+| `GEMINI_MODEL` | `gemini-1.5-flash` | Configurable Gemini model identifier |
 | `GEMINI_MAX_OUTPUT_TOKENS` | `800` | Token limit per chat response |
 | `GEMINI_TEMPERATURE` | `0.2` | Low temperature for grounded safety facts |
 | `GEMINI_TIMEOUT_SECONDS` | `15.0` | API call timeout |
 | `CHATBOT_RATE_LIMIT_PER_MINUTE` | `20` | In-memory sliding window rate limit |
 | `CHATBOT_MAX_MESSAGE_LENGTH` | `600` | Max character length per user question |
+| `SEVERITY_AI_ENABLED` | `true` | Enable/disable AI severity classification |
+| `SEVERITY_AI_PREVIEW` | `true` | Set `false` to run AI only on submit (saves free quota) |
+| `SEVERITY_AI_PROVIDER` | `openai_compat` | Provider for Severity AI |
+| `SEVERITY_AI_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` | Google Gemini OpenAI compat endpoint |
+| `SEVERITY_AI_MODEL` | `gemini-1.5-flash` | Gemini model for severity engine |
+| `SEVERITY_AI_API_KEY` | `AIzaSy...` | Dedicated Gemini key for severity engine (optional, falls back to rules if empty) |
 
 5. Click **Deploy Web Service**.
 6. Render will download requirements, run `init_db` (which executes PostGIS verification, Alembic migrations, and seeds initial data), and start Uvicorn.

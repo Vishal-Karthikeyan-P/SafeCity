@@ -628,8 +628,8 @@ Configure in `apps/backend/.env`:
 # Google AI Studio API Key (Backend only - NEVER expose in web/mobile code)
 GEMINI_API_KEY=your_gemini_api_key_here
 
-# Configurable Gemini Model (e.g. gemini-2.5-flash, gemini-1.5-flash)
-GEMINI_MODEL=gemini-2.5-flash
+# Configurable Gemini Model (e.g. gemini-1.5-flash, gemini-1.5-pro)
+GEMINI_MODEL=gemini-1.5-flash
 
 # Generation Controls
 GEMINI_MAX_OUTPUT_TOKENS=800

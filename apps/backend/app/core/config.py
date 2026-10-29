@@ -86,12 +86,27 @@ class Settings(BaseSettings):
 
     # ── Gemini AI & Chatbot ───────────────────────────────────
     GEMINI_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MODEL: str = "gemini-1.5-flash"
     GEMINI_MAX_OUTPUT_TOKENS: int = 800
     GEMINI_TEMPERATURE: float = 0.2
     GEMINI_TIMEOUT_SECONDS: float = 15.0
     CHATBOT_RATE_LIMIT_PER_MINUTE: int = 20
     CHATBOT_MAX_MESSAGE_LENGTH: int = 600
+
+    # ── Severity AI Engine ────────────────────────────────────
+    # Uses a *separate* Gemini API key so the chatbot and the severity
+    # engine have independent quotas and can be rotated independently.
+    #
+    # Provider: "openai_compat" routes through Google's OpenAI-compatible
+    # endpoint (https://generativelanguage.googleapis.com/v1beta/openai).
+    # Set SEVERITY_AI_ENABLED=false to force the deterministic rule-based
+    # fallback only (zero API calls, zero cost).
+    SEVERITY_AI_ENABLED: str = "true"
+    SEVERITY_AI_PREVIEW: str = "true"          # set "false" on free-tier daily caps
+    SEVERITY_AI_PROVIDER: str = "openai_compat"
+    SEVERITY_AI_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/openai"
+    SEVERITY_AI_MODEL: str = "gemini-1.5-flash"
+    SEVERITY_AI_API_KEY: Optional[str] = None  # dedicated Gemini key for severity engine
 
     class Config:
         env_file = ".env"
