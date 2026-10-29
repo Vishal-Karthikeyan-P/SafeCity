@@ -44,11 +44,6 @@ export const ReportScreen: React.FC<Props> = ({ navigation }) => {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
 
-  // Auto-severity preview (fetched from backend)
-  const [severityPreview, setSeverityPreview] = useState<{ severity: string; score: number } | null>(null);
-  const [isSeverityLoading, setIsSeverityLoading] = useState(false);
-  const [severityTimer, setSeverityTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
-
   // GPS Location State
   const [coords, setCoords] = useState<{ latitude: number; longitude: number }>({
     latitude: DEFAULT_COORDS.latitude,
@@ -187,7 +182,6 @@ export const ReportScreen: React.FC<Props> = ({ navigation }) => {
     setAddress('Gandhipuram, Coimbatore');
     setIsAnonymous(false);
     setPhotoUri(null);
-    setSeverityPreview(null);
     setErrors({});
     setCategoryId('');
   };
@@ -211,7 +205,7 @@ export const ReportScreen: React.FC<Props> = ({ navigation }) => {
   const submitIncidentReport = async () => {
     setIsSubmitting(true);
     try {
-      // 1. Create incident in backend — severity is auto-determined server-side
+      // 1. Create incident in backend — severity is auto-determined server-side by Gemini AI
       const payload: CreateIncidentPayload = {
         title: title.trim(),
         description: description.trim(),
@@ -241,9 +235,10 @@ export const ReportScreen: React.FC<Props> = ({ navigation }) => {
       setShowReviewModal(false);
       resetForm();
 
+      const sevLabel = (created.severity || 'medium').toUpperCase();
       Alert.alert(
         'Incident Report Submitted',
-        'Your report has been successfully recorded in the SafeCity database and sent for official verification.',
+        `Your report has been successfully recorded in the SafeCity database.\n\nAI-Determined Severity: ${sevLabel}\n\nOur safety response team and community feeds have been notified.`,
         [
           {
             text: 'View on Map',
@@ -263,28 +258,6 @@ export const ReportScreen: React.FC<Props> = ({ navigation }) => {
       setIsSubmitting(false);
     }
   };
-
-  // Fetch severity preview from backend (debounced via useEffect)
-  useEffect(() => {
-    if (!categoryId || title.trim().length < 3) {
-      setSeverityPreview(null);
-      return;
-    }
-    if (severityTimer) clearTimeout(severityTimer);
-    const timer = setTimeout(async () => {
-      setIsSeverityLoading(true);
-      try {
-        const result = await IncidentsApi.previewSeverity(categoryId, title.trim(), description.trim());
-        setSeverityPreview(result);
-      } catch {
-        // ignore
-      } finally {
-        setIsSeverityLoading(false);
-      }
-    }, 600);
-    setSeverityTimer(timer);
-    return () => clearTimeout(timer);
-  }, [categoryId, title, description]);
 
   const getSeverityColors = (sev: string) => {
     switch (sev) {
@@ -386,36 +359,13 @@ export const ReportScreen: React.FC<Props> = ({ navigation }) => {
           error={errors.category}
         />
 
-        {/* Auto-Severity Preview */}
-        {categoryId && title.trim().length >= 3 ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>System-Detected Severity</Text>
-            {isSeverityLoading && !severityPreview ? (
-              <View style={styles.severityPreviewLoading}>
-                <ActivityIndicator size="small" color={Colors.primary} />
-                <Text style={styles.severityPreviewLoadingText}>Analyzing incident...</Text>
-              </View>
-            ) : severityPreview ? (() => {
-              const { bg, text, dot } = getSeverityColors(severityPreview.severity);
-              return (
-                <View style={[styles.severityPreviewCard, { backgroundColor: bg }]}>
-                  <View style={[styles.severityPreviewDot, { backgroundColor: dot }]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.severityPreviewLabel, { color: text }]}>
-                      Auto-detected: {severityPreview.severity.toUpperCase()}
-                    </Text>
-                    <Text style={[styles.severityPreviewSub, { color: text }]}>
-                      Determined from category, title & description
-                    </Text>
-                  </View>
-                  <Text style={[styles.severityScore, { color: text }]}>
-                    {severityPreview.score}/100
-                  </Text>
-                </View>
-              );
-            })() : null}
-          </View>
-        ) : null}
+        {/* Severity Notice */}
+        <View style={styles.severityInfoBox}>
+          <Ionicons name="sparkles-outline" size={16} color={Colors.primary} />
+          <Text style={styles.severityInfoText}>
+            Severity will be evaluated by SafeCity AI upon submission.
+          </Text>
+        </View>
 
         {/* Photo Attachment Section */}
         <View style={styles.section}>
@@ -516,15 +466,7 @@ export const ReportScreen: React.FC<Props> = ({ navigation }) => {
                       {selectedCategoryObj?.name || 'Hazard'}
                     </Text>
                   </View>
-                  {severityPreview ? (
-                    <Badge
-                      label={severityPreview.severity}
-                      variant="severity"
-                      severity={severityPreview.severity as SeverityLevel}
-                    />
-                  ) : (
-                    <Badge label="auto" variant="neutral" />
-                  )}
+                  <Badge label="AI Evaluated on Submit" variant="neutral" />
                 </View>
 
                 <Text style={styles.reviewLabel}>Title</Text>
@@ -697,33 +639,7 @@ const styles = StyleSheet.create({
   categoryChipTextSelected: {
     color: Colors.primaryDark,
   },
-  severityPreviewCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderRadius: 12,
-    padding: 12,
-  },
-  severityPreviewDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  severityPreviewLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  severityPreviewSub: {
-    fontSize: 11,
-    marginTop: 1,
-    opacity: 0.8,
-  },
-  severityScore: {
-    fontSize: 12,
-    fontWeight: '700',
-    opacity: 0.7,
-  },
-  severityPreviewLoading: {
+  severityInfoBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -732,10 +648,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.border,
+    marginBottom: 16,
   },
-  severityPreviewLoadingText: {
-    fontSize: 13,
-    color: Colors.textMuted,
+  severityInfoText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    flex: 1,
   },
   photoUploadBtn: {
     backgroundColor: '#ffffff',

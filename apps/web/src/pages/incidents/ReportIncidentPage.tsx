@@ -2,53 +2,56 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { MapPin, Image as ImageIcon, X, ArrowRight, Loader2, Sparkles } from 'lucide-react'
+import { MapPin, Image as ImageIcon, X, ArrowRight, Loader2, Sparkles, CheckCircle2, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { IncidentMap } from '@/components/map/IncidentMap'
-import { useCreateIncident, useUploadImages, usePreviewSeverity, previewSeverity } from '@/api/incidents'
+import { useCreateIncident, useUploadImages } from '@/api/incidents'
+import type { Incident } from '@/types'
 import { SearchableCategorySelect } from '@/components/incidents/SearchableCategorySelect'
 import { reportIncidentSchema, type ReportIncidentValues } from '@/lib/schemas'
 import { toast } from 'sonner'
 
-// Severity appearance helpers
-const SEVERITY_STYLES: Record<string, { bg: string; text: string; dot: string; label: string }> = {
-  low: { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500', label: 'Low' },
-  medium: { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', label: 'Medium' },
-  high: { bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500', label: 'High' },
-  critical: { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500', label: 'Critical' },
-}
-
-function useDebouncedValue<T>(value: T, delay = 600): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(t)
-  }, [value, delay])
-  return debounced
-}
-
-function SeverityPreviewBadge({ severity, score, loading }: { severity?: string; score?: number; loading?: boolean }) {
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 text-sm text-muted-foreground animate-pulse">
-        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-        Calculating severity...
-      </div>
-    )
-  }
-  if (!severity) return null
-  const style = SEVERITY_STYLES[severity] ?? SEVERITY_STYLES.medium
-  return (
-    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium ${style.bg} ${style.text}`}>
-      <span className={`w-2 h-2 rounded-full ${style.dot}`} />
-      <Sparkles className="w-3.5 h-3.5 opacity-60" />
-      Auto-detected severity: <strong>{style.label}</strong>
-      {score != null && <span className="opacity-60 text-xs ml-1">(score {score})</span>}
-    </div>
-  )
+// Severity appearance helpers for post-submission display
+const SEVERITY_STYLES: Record<string, { bg: string; text: string; dot: string; border: string; label: string }> = {
+  low: {
+    bg: 'bg-emerald-500/10',
+    text: 'text-emerald-700 dark:text-emerald-400',
+    dot: 'bg-emerald-500',
+    border: 'border-emerald-500/30',
+    label: 'Low',
+  },
+  medium: {
+    bg: 'bg-amber-500/10',
+    text: 'text-amber-700 dark:text-amber-400',
+    dot: 'bg-amber-500',
+    border: 'border-amber-500/30',
+    label: 'Medium',
+  },
+  high: {
+    bg: 'bg-orange-500/10',
+    text: 'text-orange-700 dark:text-orange-400',
+    dot: 'bg-orange-500',
+    border: 'border-orange-500/30',
+    label: 'High',
+  },
+  critical: {
+    bg: 'bg-red-500/10',
+    text: 'text-red-700 dark:text-red-400',
+    dot: 'bg-red-500',
+    border: 'border-red-500/30',
+    label: 'Critical',
+  },
 }
 
 export function ReportIncidentPage() {
@@ -62,11 +65,16 @@ export function ReportIncidentPage() {
   const [images, setImages] = useState<File[]>([])
   const [isLocating, setIsLocating] = useState(false)
 
+  // Post-submission state
+  const [submittedIncident, setSubmittedIncident] = useState<Incident | null>(null)
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false)
+
   const {
     register,
     handleSubmit,
     setValue,
     watch,
+    reset,
     formState: { errors },
   } = useForm<ReportIncidentValues>({
     resolver: zodResolver(reportIncidentSchema),
@@ -74,23 +82,6 @@ export function ReportIncidentPage() {
       is_anonymous: false,
     },
   })
-
-  // Watch fields for live severity preview
-  const watchedCategoryId = watch('category_id')
-  const watchedTitle = watch('title') ?? ''
-  const watchedDescription = watch('description') ?? ''
-
-  // Category changes fire immediately; title/description wait until typing pauses.
-  const debouncedTitle = useDebouncedValue(watchedTitle.trim())
-  const debouncedDescription = useDebouncedValue(watchedDescription.trim())
-  const isTyping =
-    watchedTitle.trim() !== debouncedTitle || watchedDescription.trim() !== debouncedDescription
-
-  const { data: severityPreview, isFetching: isSeverityLoading } = usePreviewSeverity(
-    watchedCategoryId,
-    debouncedTitle,
-    debouncedDescription,
-  )
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -145,26 +136,27 @@ export function ReportIncidentPage() {
 
   const onSubmit = async (data: ReportIncidentValues) => {
     try {
-      // Final classification with the exact submitted values (the live preview may lag by the debounce)
-      try {
-        const final = await previewSeverity(data.category_id, data.title, data.description)
-        if (final?.severity) toast.info(`Final severity: ${final.severity.charAt(0).toUpperCase()}${final.severity.slice(1)}`)
-      } catch {
-        // Preview failure must not block submission; the backend still classifies on create.
-      }
-
-      // severity is NOT sent — backend auto-computes it
+      // Backend automatically computes severity with Gemini LLM on create
       const incident = await createIncident(data)
       if (images.length > 0) {
         await uploadImages({ incidentId: incident.id, files: images })
       }
-      navigate(`/incidents/${incident.id}`)
-    } catch (err) {
+
+      setSubmittedIncident(incident)
+      setShowSuccessDialog(true)
+
+      const sev = (incident.severity || 'medium').toLowerCase()
+      const formattedSev = sev.charAt(0).toUpperCase() + sev.slice(1)
+      toast.success(`Incident reported! Assigned severity: ${formattedSev}`)
+    } catch {
       // Error handled by api interceptor
     }
   }
 
   const isSubmitting = isCreating || isUploading
+  const severityStyle = submittedIncident?.severity
+    ? SEVERITY_STYLES[submittedIncident.severity.toLowerCase()] ?? SEVERITY_STYLES.medium
+    : SEVERITY_STYLES.medium
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -212,24 +204,13 @@ export function ReportIncidentPage() {
               {errors.description && <p className="text-xs text-destructive mt-1">{errors.description.message}</p>}
             </div>
 
-            {/* Auto-Severity Preview */}
-            {(watchedCategoryId && watchedTitle.length >= 3) && (
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
-                  System-Determined Severity
-                </p>
-                <div className={isSeverityLoading || isTyping ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
-                  <SeverityPreviewBadge
-                    severity={severityPreview?.severity}
-                    score={severityPreview?.score}
-                    loading={(isSeverityLoading || isTyping) && !severityPreview}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Severity is automatically calculated based on category, title, and description.
-                </p>
-              </div>
-            )}
+            {/* Severity notice (assessed upon submission) */}
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-muted/40 border border-muted-foreground/15 text-xs text-muted-foreground">
+              <Sparkles className="w-4 h-4 text-primary shrink-0" />
+              <span>
+                Incident severity is analyzed and determined by SafeCity AI after submission based on the complete incident context.
+              </span>
+            </div>
           </CardContent>
         </Card>
 
@@ -326,6 +307,76 @@ export function ReportIncidentPage() {
           </Button>
         </div>
       </form>
+
+      {/* Post-Submission Severity Dialog */}
+      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="items-center text-center">
+            <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center mx-auto mb-2">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <DialogTitle className="text-xl">Incident Submitted Successfully</DialogTitle>
+            <DialogDescription className="text-center">
+              Your report has been recorded and broadcast to community safety feeds.
+            </DialogDescription>
+          </DialogHeader>
+
+          {submittedIncident && (
+            <div className="space-y-4 my-2">
+              {/* Severity Card with AI Evaluation */}
+              <div className={`p-4 rounded-xl border ${severityStyle.bg} ${severityStyle.border}`}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                    Determined Severity
+                  </span>
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ${severityStyle.bg} ${severityStyle.text}`}>
+                    <span className={`w-2 h-2 rounded-full ${severityStyle.dot}`} />
+                    {severityStyle.label}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Evaluated by SafeCity AI engine from the full situational context of your report.
+                </p>
+              </div>
+
+              <div className="bg-muted/40 p-3 rounded-lg text-xs space-y-1 text-muted-foreground border">
+                <p><strong className="text-foreground">Title:</strong> {submittedIncident.title}</p>
+                {submittedIncident.location_address && (
+                  <p><strong className="text-foreground">Location:</strong> {submittedIncident.location_address}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowSuccessDialog(false)
+                setSubmittedIncident(null)
+                reset()
+                setImages([])
+                setSelectedLocation(null)
+              }}
+            >
+              Report Another
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (submittedIncident) {
+                  navigate(`/incidents/${submittedIncident.id}`)
+                }
+              }}
+            >
+              View Incident Details
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
