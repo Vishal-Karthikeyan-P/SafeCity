@@ -24,7 +24,12 @@ from app.schemas.incident import (
     UpdateIncidentStatusRequest,
 )
 from app.services.incident_service import IncidentService
-from app.services.severity_engine import compute_severity, preview_severity as _engine_preview
+from app.services.severity_engine import (
+    compute_severity,
+    preview_severity as _engine_preview,
+    apreview_severity,
+    acompute_severity,
+)
 
 router = APIRouter()
 
@@ -129,7 +134,7 @@ async def preview_severity(
         cat = await repo.get_category_by_id(category_id)
         if cat:
             cat_slug = cat.slug
-    result = _engine_preview(cat_slug, title, description)
+    result = await apreview_severity(cat_slug, title, description)
     return result
 
 

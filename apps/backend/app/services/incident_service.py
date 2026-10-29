@@ -23,7 +23,11 @@ from app.schemas.incident import (
     ResolutionRequestCreate, ResolutionRequestReview, ResolutionRequestSchema,
     IncidentStatusHistorySchema
 )
-from app.services.severity_engine import compute_severity, preview_severity as _engine_preview
+from app.services.severity_engine import (
+    compute_severity,
+    acompute_severity,
+    preview_severity as _engine_preview,
+)
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 MAX_SIZE_BYTES = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
@@ -57,7 +61,7 @@ class IncidentService:
 
         # Auto-determine severity from category + title + description
         # (client-supplied severity is ignored to ensure consistency)
-        auto_severity = compute_severity(
+        auto_severity = await acompute_severity(
             category_slug=cat.slug,
             title=data.title,
             description=data.description,
